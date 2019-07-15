@@ -920,7 +920,7 @@ char * encryption_md5(unsigned char * buf, int buf_len, int &md5_len)
 	CryptDestroyHash(hHash);
 	CryptReleaseContext(hProv, 0);
 
-	return TRUE;
+	//return TRUE;
 
 	return md5_buf;
 }
