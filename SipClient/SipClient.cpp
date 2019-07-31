@@ -12,36 +12,6 @@
 
 
 
-////创建新的guid
-//BOOL NewGUIDString(CString &strGUID)
-//{
-//	GUID guid;
-//	char data[1024] = { 0 };
-//	int len = 0;
-//
-//	if (S_OK != ::CoCreateGuid(&guid))
-//	{
-//		return false;
-//	}
-//
-//
-//	len = sprintf_s(data, 1024, "%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X",
-//		guid.Data1, guid.Data2, guid.Data3, guid.Data4[0], guid.Data4[1],
-//		guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5],
-//		guid.Data4[6], guid.Data4[7]);
-//
-//	if (len <= 0)
-//	{
-//		return false;
-//	}
-//	strGUID = data;
-//
-//
-//	return true;
-//}
-
-//BOOL find_sdp(CSipPacket *packet, CSDP &sdp);
-
 CSipClient::CSipClient()
 {
 	m_client_status = uninitialized;
@@ -90,9 +60,9 @@ BOOL CSipClient::init(const CString &strServerAddress, unsigned short usServerPo
 	//if (NULL == m_call_info->rtp_cache)
 	//	return FALSE;
 
-	m_strServerIP = strServerAddress;
+	m_strSipServerAddr = strServerAddress;
 	m_usServerPort = usServerPort;
-	m_strLocalIP = strLocalAddress;
+	m_strLocalSipAddr = strLocalAddress;
 	//初始化sock
 	if (!m_udpSipSock.Create(usLocalSipPort, SOCK_DGRAM))
 		return FALSE;
@@ -212,14 +182,98 @@ BOOL CSipClient::init(const CString &strServerAddress, unsigned short usServerPo
 BOOL CSipClient::register_account(const CString &strUserName, const CString &strPassword)
 {
 	if (init_ok > m_client_status || m_bwork == FALSE)
-		return false;
+		return FALSE;
 	
 	CSipPacket packet;
 	CSipPacketInfo *packet_info = NULL;
+	CString strLineData, strGuid;
+	CStringArray arrLineData;
 
-	if (!packet.build_register_request(strUserName, strPassword, m_strServerIP, m_usServerPort,
-		m_strLocalIP, m_usLocalSipPort, m_nRegisterCSeq++))
+	//构建注册消息
+	//request-line
+	REQUEST_PARAMETER stuRequsetPar;
+	stuRequsetPar.method = SipRegister;
+	stuRequsetPar.request_uri.host = m_strSipServerAddr;
+	stuRequsetPar.request_uri.port = 0;
+	stuRequsetPar.request_uri.user = strUserName;
+	if (!packet.generate_request_line(strLineData, stuRequsetPar))
 		return FALSE;
+	arrLineData.Add(strLineData);
+
+	//via
+	VIA_PARAMETER stuViaPar;
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	stuViaPar.branch = _T("z9hG4bK");
+	stuViaPar.branch += strGuid;
+	stuViaPar.recvived_port = 0;
+	stuViaPar.sent_address = m_strLocalSipAddr;
+	stuViaPar.sent_port = m_usLocalSipPort;
+	strLineData = packet.generate_via_line(stuViaPar);
+	arrLineData.Add(strLineData);
+
+	//max forwards
+	strLineData = packet.generate_max_forwards_line(70);
+	arrLineData.Add(strLineData);
+
+	//contact //联系人 注册时是自己
+	CONTACT_PARAMETER stuContactPar;
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	stuContactPar.contact_uri.host = m_strLocalSipAddr;
+	stuContactPar.contact_uri.port = m_usLocalSipPort;
+	stuContactPar.contact_uri.user = strUserName;
+	stuContactPar.parameter = _T("rinstance");
+	stuContactPar.parameter += strGuid;
+	strLineData = packet.generate_contact_line(stuContactPar);
+	arrLineData.Add(strLineData);
+
+	//to
+	TO_PARAMETER stuToPar;
+	//if (!packet.NewGUIDString(strGuid))
+	//	return FALSE;
+	stuToPar.display_info = strUserName;
+	stuToPar.to_user = strUserName;
+	stuToPar.to_host = m_strSipServerAddr;
+	//stuToPar.to_tag = strGuid;
+	strLineData = packet.generate_to_line(stuToPar);
+	arrLineData.Add(strLineData);
+
+	//from
+	FROM_PARAMETER stuFromPar;
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	stuFromPar.display_info = strUserName;
+	stuFromPar.from_user = strUserName;
+	stuFromPar.from_host = m_strSipServerAddr;
+	stuFromPar.from_tag = strGuid;
+	strLineData = packet.generate_from_line(stuFromPar);
+	arrLineData.Add(strLineData);
+
+	//call-id
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	strLineData = packet.generate_callid_line(strGuid);
+	arrLineData.Add(strLineData);
+
+	//cseq
+	CSEQ_PARAMETER stuCSeqPar;
+	stuCSeqPar.cseq = m_nRegisterCSeq;
+	stuCSeqPar.method = SipRegister;
+	if (!packet.generate_cseq_line(strLineData, stuCSeqPar))
+		return FALSE;
+	arrLineData.Add(strLineData);
+
+	//结束
+	arrLineData.Add(_T("\r\n"));
+
+	packet.build_packet(arrLineData);
+
+	//发送
+	if (!send_packet(&packet))
+		return FALSE;
+
+	//packet info
 	packet_info = new CSipPacketInfo();
 	if (NULL == packet_info)
 		return FALSE;
@@ -229,20 +283,11 @@ BOOL CSipClient::register_account(const CString &strUserName, const CString &str
 	m_strUserName = strUserName;
 	m_strPassword = strPassword;
 
-	//发送
-	if (!send_sip_packet(&packet))
-		return FALSE;
-
-
 	m_last_send_time = ::GetTickCount();
 	packet_info->set_time(m_last_send_time);
 	m_request_info_ArrLock.Lock();
 	m_arrRequest_PackInfo.Add(packet_info);
 	m_request_info_ArrLock.Unlock();
-
-
-
-
 
 	return TRUE;
 }
@@ -316,11 +361,12 @@ BOOL CSipClient::make_call(const CString &strCallName, BOOL audio_media, WORD au
 		return false;
 
 	CSipPacket packet;
-	CString addr, str_sdp;
+	CString addr, str_sdp, strLineData, strGuid;
+	CStringArray arrLineData;
 	WORD port;
 	
 	//修改sdp (端口，地址)
-	m_local_sdp->set_address(m_strLocalIP);
+	m_local_sdp->set_address(m_strLocalSipAddr);
 	m_local_sdp->set_audio_media(audio_media);
 	m_local_sdp->set_video_media(video_media);
 	if (audio_media)
@@ -334,7 +380,7 @@ BOOL CSipClient::make_call(const CString &strCallName, BOOL audio_media, WORD au
 			return FALSE;
 		m_local_sdp->set_audio_media(TRUE);
 		m_local_sdp->set_audio_port(port);
-		m_local_sdp->set_audio_address(m_strLocalIP);
+		m_local_sdp->set_audio_address(m_strLocalSipAddr);
 	}
 	if (video_media)
 	{
@@ -347,8 +393,86 @@ BOOL CSipClient::make_call(const CString &strCallName, BOOL audio_media, WORD au
 			return FALSE;
 		m_local_sdp->set_video_media(TRUE);
 		m_local_sdp->set_video_port(port);
-		m_local_sdp->set_video_address(m_strLocalIP);
+		m_local_sdp->set_video_address(m_strLocalSipAddr);
 	}
+
+	//构建invite消息
+	//request-line
+	REQUEST_PARAMETER stuRequsetPar;
+	stuRequsetPar.method = SipInvite;
+	stuRequsetPar.request_uri.host = m_strSipServerAddr;
+	stuRequsetPar.request_uri.port = 0;
+	stuRequsetPar.request_uri.user = strCallName;
+	if (!packet.generate_request_line(strLineData, stuRequsetPar))
+		return FALSE;
+	arrLineData.Add(strLineData);
+
+	//via
+	VIA_PARAMETER stuViaPar;
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	stuViaPar.branch = _T("z9hG4bK");
+	stuViaPar.branch += strGuid;
+	stuViaPar.recvived_port = 0;
+	stuViaPar.sent_address = m_strLocalSipAddr;
+	stuViaPar.sent_port = m_usLocalSipPort;
+	strLineData = packet.generate_via_line(stuViaPar);
+	arrLineData.Add(strLineData);
+
+	//max forwards
+	strLineData = packet.generate_max_forwards_line(70);
+	arrLineData.Add(strLineData);
+
+	//contact 
+	CONTACT_PARAMETER stuContactPar;
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	stuContactPar.contact_uri.host = m_strLocalSipAddr;
+	stuContactPar.contact_uri.port = m_usLocalSipPort;
+	stuContactPar.contact_uri.user = strUserName;
+	stuContactPar.parameter = _T("rinstance");
+	stuContactPar.parameter += strGuid;
+	strLineData = packet.generate_contact_line(stuContactPar);
+	arrLineData.Add(strLineData);
+
+	//to
+	TO_PARAMETER stuToPar;
+	//if (!packet.NewGUIDString(strGuid))
+	//	return FALSE;
+	stuToPar.display_info = strUserName;
+	stuToPar.to_user = strUserName;
+	stuToPar.to_host = m_strSipServerAddr;
+	//stuToPar.to_tag = strGuid;
+	strLineData = packet.generate_to_line(stuToPar);
+	arrLineData.Add(strLineData);
+
+	//from
+	FROM_PARAMETER stuFromPar;
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	stuFromPar.display_info = strUserName;
+	stuFromPar.from_user = strUserName;
+	stuFromPar.from_host = m_strSipServerAddr;
+	stuFromPar.from_tag = strGuid;
+	strLineData = packet.generate_from_line(stuFromPar);
+	arrLineData.Add(strLineData);
+
+	//call-id
+	if (!packet.NewGUIDString(strGuid))
+		return FALSE;
+	strLineData = packet.generate_callid_line(strGuid);
+	arrLineData.Add(strLineData);
+
+	//cseq
+	CSEQ_PARAMETER stuCSeqPar;
+	stuCSeqPar.cseq = m_nRegisterCSeq;
+	stuCSeqPar.method = SipRegister;
+	if (!packet.generate_cseq_line(strLineData, stuCSeqPar))
+		return FALSE;
+	arrLineData.Add(strLineData);
+
+	//结束
+	arrLineData.Add(_T("\r\n"));
 
 	str_sdp = m_local_sdp->to_buffer();
 	if (!packet.builf_invite_request(strCallName,m_strUserName, m_strContactUser,  m_strServerIP, m_usServerPort,
@@ -699,7 +823,7 @@ DWORD CSipClient::DoReceiveSip()
 		}
 	}
 
-	delete pBuffer;
+	delete [] pBuffer;
 
 
 	return 0;
@@ -877,31 +1001,24 @@ BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
 //}
 
 
-char * encryption_md5(unsigned char * buf, int buf_len, int &md5_len)
+BOOL get_md5_hash(const BYTE * pbData, int nDataLen, CString &strMd5Hash)
 {
-	char *md5_buf = NULL;
-
 	HCRYPTPROV hProv;
 	if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
-	{
-		//err = GetLastError();
-		return NULL;
-	}
+		return FALSE;
 
 	HCRYPTHASH hHash;
 	if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash))
 	{
-		//err = GetLastError();
 		CryptReleaseContext(hProv, 0);
-		return NULL;
+		return FALSE;
 	}
 
-	if (!CryptHashData(hHash, buf, buf_len, 0))
+	if (!CryptHashData(hHash, pbData, nDataLen, 0))
 	{
-		//err = GetLastError();
 		CryptDestroyHash(hHash);
 		CryptReleaseContext(hProv, 0);
-		return NULL;
+		return FALSE;
 	}
 
 	DWORD dwSize;
@@ -912,25 +1029,61 @@ char * encryption_md5(unsigned char * buf, int buf_len, int &md5_len)
 	dwLen = dwSize;
 	CryptGetHashParam(hHash, HP_HASHVAL, pHash, &dwLen, 0);
 
-	strHash = _T("");
+	strMd5Hash = _T("");
 	for (DWORD i = 0; i<dwLen; i++)
-		strHash.AppendFormat(_T("%02X"), pHash[i]);
+		strMd5Hash.AppendFormat(_T("%02X"), pHash[i]);
 	delete[] pHash;
+
 
 	CryptDestroyHash(hHash);
 	CryptReleaseContext(hProv, 0);
 
-	//return TRUE;
-
-	return md5_buf;
+	return TRUE;
 }
 
-BOOL register_authenticate()
-{
-	BOOL ret = false;
 
-	GetProcAddress();
-	return ret;
+BOOL get_nonce(CSipPacket *pPacket, CString &strNonce)
+{
+	if (NULL == pPacket)
+		return FALSE;
+
+	int nDataLen = 0, i = 0;
+	unsigned char * pPacketData = pPacket->get_data(nDataLen);
+	char szBuf[128] = { 0 };
+
+	if (NULL == pPacketData)
+		return FALSE;
+
+	char * pFlag = strstr((char *)pPacketData, "nonce");
+	if (NULL == pFlag)
+		return FALSE;
+	pFlag += strlen("nonce=\"");
+
+	while (i<128)
+	{
+		if (pFlag[i] == '\"')
+			break;
+		szBuf[i] = pFlag[i];
+		i++;
+	}
+	strNonce = szBuf;
+
+	return TRUE;
+}
+
+BOOL register_authenticate(CSipPacket *pRecvPacket)
+{
+	CString strNonce;
+	CSipPacket Packet;
+
+
+	if (!get_nonce(pRecvPacket, strNonce))
+		return FALSE;
+
+	Packet.build_register_request()
+
+
+	return FALSE;
 }
 
 
@@ -1191,7 +1344,7 @@ DWORD CSipClient::do_recv_rtp()
 	}
 
 
-	delete buf;
+	delete [] buf;
 	buf = NULL;
 
 	//FILE *sdp_file = fopen("sip.sdp","w+");
@@ -1210,25 +1363,31 @@ DWORD CSipClient::do_recv_rtp()
 }
 
 //向服务器发送sip消息
-BOOL CSipClient::send_sip_packet(CSipPacket *pack)
+BOOL CSipClient::send_packet(CSipPacket *pack)
 {
 	if (pack == NULL)
 		return FALSE;
+	CString strData = pack->get_packet_data();
+	if (strData.IsEmpty())
+		return FALSE;
 
 	int flag = 0, ret = 0, data_len = 0;
-	unsigned char * data = NULL;
-	data = pack->get_data(data_len);
+	BYTE * pbData = NULL;
 
-	if (NULL != data)
+	pbData = new BYTE [data_len];
+	if (NULL == pbData)
+		return FALSE;
+	data_len = strData.GetLength();
+	memcpy(pbData, strData.GetBuffer(data_len), data_len);
+
+
+	while (data_len)
 	{
-		while (data_len)
-		{
-			ret = m_udpSipSock.SendTo(data + flag, data_len, m_usServerPort, m_strServerIP);
-			if (ret < 0)
-				return FALSE;
-			flag += ret;
-			data_len -= ret;
-		}
+		ret = m_udpSipSock.SendTo(pbData + flag, data_len, m_usServerPort, m_strSipServerAddr);
+		if (ret < 0)
+			return FALSE;
+		flag += ret;
+		data_len -= ret;
 	}
 
 

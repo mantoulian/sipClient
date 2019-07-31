@@ -346,7 +346,7 @@ static BOOL decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, CWnd*
 			frame->width, frame->height, pImageData, &m_bmpMapInfo, DIB_RGB_COLORS, SRCCOPY);
 
 		//4清理
-		delete pImageData;
+		delete [] pImageData;
 
 		////解码一帧完成，拷贝数据
 		// f = av_frame_alloc();

@@ -287,7 +287,7 @@ BOOL CSDP::from_buffer(char * buffer, int buf_len)
 	}
 	if (NULL != buf)
 	{
-		delete buf;
+		delete [] buf;
 		buf = NULL;
 	}
 

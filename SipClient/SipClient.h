@@ -28,7 +28,7 @@ typedef struct call_info
 }CALL_INFO;
 
 
-typedef void(*incoming_call_back)(CSipPacketInfo *packet_info);
+typedef void(*incoming_call_back)(const CSipPacketInfo *packet_info);
 
 class AFX_EXT_CLASS CSipClient
 {
@@ -38,9 +38,6 @@ public:
 
 	BOOL init(const CString &strServerAddress, unsigned short usServerPort,
 		const CString &strLocalAddress, unsigned short usLocalSipPort=0);
-
-	//BOOL init(const CSDP &sdp, const CString &strServerAddress, unsigned short usServerPort,
-	//	const CString &strLocalAddress, unsigned short usLocalSipPort = 0);
 
 	BOOL register_account(const CString &strUserName, const CString &strPassword);
 
@@ -67,7 +64,7 @@ public:
 
 protected:
 
-	BOOL send_sip_packet(CSipPacket *packet);
+	BOOL send_packet(CSipPacket *packet);
 private:
 	static DWORD WINAPI ReceiveSipThread(LPVOID lpParam);
 	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
@@ -75,12 +72,10 @@ private:
 	DWORD DoSipPacketProcess();
 	void proc_sip_mess(CSipPacket *sipMess);//解析sip消息
 	BOOL invite_ok_process(CSipPacketInfo *sipMess);//解析 invite ok
-	//BOOL start_rtp_transport();
 
 
 	static DWORD WINAPI send_rtp_thread(LPVOID lpParam);
 	static DWORD WINAPI recv_rtp_thread(LPVOID lpParam);
-	//static DWORD WINAPI recv_rtp_audio_thread(LPVOID lpParam);
 
 	DWORD do_send_rtp();
 	DWORD do_recv_rtp();
@@ -91,16 +86,15 @@ private:
 	CMutex		m_request_info_ArrLock;
 	CTypedPtrArray<CPtrArray, CSipPacketInfo*> m_arrRequest_PackInfo;//sip请求消息队列
 
-	//CSipPacketInfo *m_last_send_packinfo;
 	DWORD m_last_send_time;
 	CALL_INFO *m_call_info;
 
 	CString m_strContactUser;
 	CString m_strUserName;
 	CString m_strPassword;
-	CString m_strServerIP;
+	CString m_strSipServerAddr;
 	unsigned short m_usServerPort;
-	CString m_strLocalIP;
+	CString m_strLocalSipAddr;
 	unsigned short m_usLocalSipPort;
 
 	int m_nRegisterCSeq;
@@ -114,22 +108,6 @@ private:
 	BOOL m_bwork;
 	incoming_call_back m_incoming_call;
 
-
-	//CRtspClient m_rtsp_client;
-
-	//unsigned short m_usLocalAudioPort;
-	//unsigned short m_usLocalVideoPort;
-	//CMutex		m_Request_branch_ArrLock;
-	//CTypedPtrArray<CPtrArray, CSipPacketInfo*> m_arrRequestPackInfo;//发送的请求消息摘要队列
-	//sip 
-	//CString m_strCallName;
-	//CString m_str_call_id;
-	//CNetSocket m_udpRtpAudio;
-	//CNetSocket m_udpRtpVideo;
-	//HANDLE m_hRecvRtpThread;//接收rtp
-	//HANDLE m_hSendRtpThread;//发送rtp
-	//CSDP m_sdp;
-	//BOOL m_bRegisterOK;
 
 };
 

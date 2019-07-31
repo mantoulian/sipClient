@@ -94,83 +94,42 @@ public:
 	CSipPacket();
 	~CSipPacket();
 
-	BOOL from_buffer(char * buffer, int buffer_len);
+	//BOOL from_buffer(char * buffer, int buffer_len);
+	//BOOL build_register_request(CString user_name, CString password, CString server_addr, WORD server_port,
+	//	CString local_addr, WORD local_port, int cseq);
+	//BOOL builf_invite_request(CString call_name, CString username, CString contact_user,
+	//	CString server_addr, WORD server_port, CString local_addr, WORD local_port, int cseq,
+	//	const CString &str_sdp);
+	//BOOL builf_ack_request(CSipPacketInfo *inv_status_packet_info, CString local_addr,
+	//	WORD local_port);
+	////status
+	//BOOL build_ok_status(CSipPacketInfo *request_packet, CString local_addr,
+	//	WORD local_portint, CString contact_user, CSDP sdp, STATUS_CODE status_code);
+	//unsigned char *get_data(int &data_len);
 
-	BOOL build_register_request(CString user_name, CString password, CString server_addr, WORD server_port,
-		CString local_addr, WORD local_port, int cseq);
-	BOOL builf_invite_request(CString call_name, CString username, CString contact_user,
-		CString server_addr, WORD server_port, CString local_addr, WORD local_port, int cseq,
-		const CString &str_sdp);
-	BOOL builf_ack_request(CSipPacketInfo *inv_status_packet_info, CString local_addr,
-		WORD local_port);
+	 BOOL generate_status_line(CString &strStatusLine, STATUS_CODE status_parameter);
+	 BOOL generate_request_line(CString &strRequestLine, REQUEST_PARAMETER request_parameter);
+	 CString generate_via_line(VIA_PARAMETER via_parameter);
+	 CString generate_from_line(FROM_PARAMETER from_parameter);
+	 CString generate_to_line(TO_PARAMETER to_parameter);
+	 CString generate_contact_line(CONTACT_PARAMETER contact_parameter);
+	 CString generate_max_forwards_line(int max_forwards);
+	 CString generate_callid_line(const CString &call_id);
+	 BOOL generate_cseq_line(CString &strCSeqLine, CSEQ_PARAMETER cseq_parameter);
+	 CString generate_route_line(CString route);
+	 CString generate_record_route_line(CString route);
+	 CString generate_content_type_line(const CString &content_type);
+	 CString generate_content_type_length_line(int content_length);
 
-	//status
-	BOOL build_ok_status(CSipPacketInfo *request_packet, CString local_addr,
-		WORD local_portint, CString contact_user, CSDP sdp, STATUS_CODE status_code);
 
-	unsigned char *get_data(int &data_len);
+	 void build_packet(const CStringArray & arrLineData);
+	 CString get_packet_data();
 
-protected:
-	 CString generate_status(STATUS_CODE status_parameter);
-	 CString generate_request(REQUEST_PARAMETER request_parameter);
-	 CString generate_via(VIA_PARAMETER via_parameter);
-	 CString generate_from(FROM_PARAMETER from_parameter);
-	 CString generate_to(TO_PARAMETER to_parameter);
-	 CString generate_contact(CONTACT_PARAMETER contact_parameter);
-	 CString generate_max_forwards(int max_forwards);
-	 CString generate_call_id(const CString &call_id);
-	 CString generate_cseq(CSEQ_PARAMETER cseq_parameter);
-	 CString generate_route(CString route);
-	 CString generate_record_route(CString route);
-
-	 CString generate_content_type(const CString &content_type);
-	 CString generate_content_type_length(int content_length);
-
-	static BOOL NewGUIDString(CString &strGUID);
-
-//void packet_add_line(CString str_line);
-	//void build_packet();
-	////BOOL FromBuffer(unsigned char *data, unsigned int data_len);
-	//BOOL build_register_request(CString str_server_addr, WORD server_port, CString str_local_addr,
-	//	WORD local_port, CString username, CString password);
-	//BOOL build_invite_request(CString str_server_addr, WORD server_port, CString str_local_addr,
-	//	WORD local_port, CString username, CString call_name, unsigned char * sdp, int sdp_len);
-	//void build_invite_request(CString request_line, CString via, CString max_forwards, CString from,
-	//	CString to, CString contact, CString call_id, CString CSeq, CString sdp);
-	//void build_ack_request(CString request_line, CString via, CString max_forwards, CString from,
-	//	CString to, CString call_id, CString CSeq);
-	//void build_ok_status(CString status_line, CString via, CString max_forwards, CString from,
-	//	CString to, CString call_id, CString CSeq, CString sdp_buf);
-	////BOOL build_register_request();
-	//BOOL build_status_pack(CSipPacket *packet, STATUS_CODE status_code,
-	//	unsigned char *content, int content_len);
-	//unsigned char* get_data();
-	//int get_data_len();
-//public:
-//	//BOOL build_packet(CString *str_line, int num);
-//
-//	CString generate_request_line(REQUEST_PARAMETER request);
-//
-//	//message line
-//	BOOL generate_request_line(CString & request_line, REQUEST_METHOD method, const CString &user,
-//		const CString &address, unsigned short port, const CString &parameter);
-//	// BOOL generate_respond_status_line(CString &status_line, STATUS_CODE status);
-//	//message header
-//	CString generate_via(const CString &sent_address, unsigned short port,
-//		const CString &branch, const CString &rport, const CString &received);
-//	CString generate_max_forwards(int max_f);
-//	CString generate_from(const CString &display_name, const CString &sip_user,
-//		const CString &sip_address, const CString &tag);
-//	CString generate_to(const CString & display_name, const CString &to_name,
-//		const CString &to_address, const CString &tag);
-//	CString generate_call_id(const CString &call_id);
-//	CString generate_cseq(int cseq, REQUEST_METHOD method);
-//	CString generate_contact(const CString &name, const CString &address, unsigned short port,
-//		const CString &parameter);
+	BOOL NewGUIDString(CString &strGUID);
+	int new_random_user();
 
 private:
-	unsigned char *m_data;
-	unsigned int  m_data_len;
+	CString m_strData;
 };
 
 class AFX_EXT_CLASS CSipPacketInfo

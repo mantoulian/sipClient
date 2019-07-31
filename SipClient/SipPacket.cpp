@@ -2,418 +2,389 @@
 #include "stdafx.h"
 #include "SipPacket.h"
 
-int random_contact_user()
-{
-	int random = 0, num = 0;
-	LARGE_INTEGER seed;
-
-	for (int i = 0; i < 8; i++)
-	{
-		QueryPerformanceFrequency(&seed);
-		QueryPerformanceCounter(&seed);
-		srand(seed.QuadPart);//初始化一个以微秒为单位的时间种子
-		random = rand() % 10;//产生一个随机数
-		num = num * 10 + random;
-	}
-
-	return num;
-}
+//int random_contact_user()
+//{
+//	int random = 0, num = 0;
+//	LARGE_INTEGER seed;
+//
+//	for (int i = 0; i < 8; i++)
+//	{
+//		QueryPerformanceFrequency(&seed);
+//		QueryPerformanceCounter(&seed);
+//		srand(seed.QuadPart);//初始化一个以微秒为单位的时间种子
+//		random = rand() % 10;//产生一个随机数
+//		num = num * 10 + random;
+//	}
+//
+//	return num;
+//}
 
 CSipPacket::CSipPacket()
 {
-	m_data = NULL;
-	m_data_len = 0;
 }
 
-//CSipPacket::CSipPacket(const CString & str_packet)
-//{
-//	m_data = str_packet;
-//}
 
 CSipPacket::~CSipPacket()
 {
-	if (NULL != m_data)
-		delete m_data;
-	m_data = NULL;
-	m_data_len = 0;
 }
 
-BOOL CSipPacket::from_buffer(char * buffer, int buffer_len)
-{
-	if (NULL == buffer || buffer < 0)
-		return FALSE;
-	
-	m_data = new unsigned char[buffer_len];
-	memcpy(m_data, buffer, buffer_len);
-	m_data_len = buffer_len;
-	return TRUE;
-}
-
-BOOL CSipPacket::build_register_request(CString username, CString password, CString server_addr,
-	WORD server_port, CString local_addr, WORD local_port, int cseq)
-{
-	REQUEST_PARAMETER request_par;
-	VIA_PARAMETER via_par;
-	FROM_PARAMETER from_par;
-	TO_PARAMETER to_par;
-	CONTACT_PARAMETER contact_par;
-	CSEQ_PARAMETER cseq_par;
-	int max_forward = 70;
-	CString call_id, random_string, sta_packet;
-	char *packet = NULL;
-
-	
-	request_par.method = SipRegister;
-	request_par.request_uri.host = server_addr;
-	request_par.request_uri.port = 0;
-
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	random_string.Insert(0, _T("z9hG4bK"));
-	via_par.sent_address = local_addr;
-	via_par.sent_port = local_port;
-	via_par.branch = random_string;
-
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	from_par.display_info = username;
-	from_par.from_user = username;
-	from_par.from_host = server_addr;
-	from_par.from_tag = random_string;
-
-	to_par.display_info = username;
-	to_par.to_user = username;
-	to_par.to_host = server_addr;
-
-	random_string.Format(_T("%d"), random_contact_user());
-	contact_par.contact_uri.user = random_string;
-	contact_par.contact_uri.host = local_addr;
-	contact_par.contact_uri.port = local_port;
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	contact_par.parameter = random_string;
-
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	call_id = random_string;
-
-	cseq_par.cseq = cseq;
-	cseq_par.method = SipRegister;
-
-
-	random_string = generate_request(request_par);
-	sta_packet += random_string;
-
-	random_string = generate_via(via_par);
-	sta_packet += random_string;
-
-	random_string = generate_max_forwards(max_forward);
-	sta_packet += random_string;
-
-	random_string = generate_from(from_par);
-	sta_packet += random_string;
-
-	random_string = generate_to(to_par);
-	sta_packet += random_string;
-
-	random_string = generate_contact(contact_par);
-	sta_packet += random_string;
-
-	random_string = generate_call_id(call_id);
-	sta_packet += random_string;
-
-	random_string = generate_cseq(cseq_par);
-	sta_packet += random_string;
-
-	sta_packet += _T("\r\n");
-
-	USES_CONVERSION;
-	packet = T2A(sta_packet);
-	if (NULL == packet)
-		return FALSE;
-	m_data_len = sta_packet.GetLength();
-	m_data = new unsigned char[m_data_len];
-	if (NULL == m_data)
-		return FALSE;
-	memcpy(m_data, packet, m_data_len);
-
-
-	return TRUE;
-}
-
-BOOL CSipPacket::builf_invite_request(CString call_name, CString username, CString contact_user,
-	CString server_addr, WORD server_port, CString local_addr, WORD local_port, int cseq,
-	const CString &str_sdp)
-{
-
-	REQUEST_PARAMETER request_par;
-	VIA_PARAMETER via_par;
-	FROM_PARAMETER from_par;
-	TO_PARAMETER to_par;
-	CONTACT_PARAMETER contact_par;
-	CSEQ_PARAMETER cseq_par;
-	int max_forward = 70, content_length;
-	CString call_id, random_string, str_packet, content_type, content_type_length;
-	char *packet = NULL;
-
-
-	request_par.method = SipInvite;
-	request_par.request_uri.user = call_name;
-	request_par.request_uri.host = server_addr;
-	request_par.request_uri.port = 0;
-
-	via_par.sent_address = local_addr;
-	via_par.sent_port = local_port;
-	via_par.recvived_port = 0;
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	random_string.Insert(0, _T("z9hG4bK"));
-	via_par.branch = random_string;
-
-	from_par.display_info = username;
-	from_par.from_user = username;
-	from_par.from_host = server_addr;
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	from_par.from_tag = random_string;
-
-	//to_par.display_info = call_name;
-	to_par.to_user = call_name;
-	to_par.to_host = server_addr;
-
-	contact_par.contact_uri.user = contact_user;
-	contact_par.contact_uri.host = local_addr;
-	contact_par.contact_uri.port = local_port;
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	contact_par.parameter = random_string;
-
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	call_id = random_string;
-
-	cseq_par.cseq = cseq;
-	cseq_par.method = SipInvite;
-
-	content_type = _T("Content-Type: application/sdp\r\n");
-	content_length = str_sdp.GetLength();
-	content_type_length.Format(_T("Content-Length: %d\r\n"), content_length);
-
-	random_string = generate_request(request_par);
-	str_packet += random_string;
-
-	random_string = generate_via(via_par);
-	str_packet += random_string;
-
-	random_string = generate_max_forwards(max_forward);
-	str_packet += random_string;
-
-	random_string = generate_from(from_par);
-	str_packet += random_string;
-
-	random_string = generate_to(to_par);
-	str_packet += random_string;
-
-	random_string = generate_contact(contact_par);
-	str_packet += random_string;
-
-	random_string = generate_call_id(call_id);
-	str_packet += random_string;
-
-	random_string = generate_cseq(cseq_par);
-	str_packet += random_string;
-
-	str_packet += content_type;
-	str_packet += content_type_length;
-	str_packet += _T("\r\n");
-	//sdp
-	str_packet += str_sdp;
-
-	USES_CONVERSION;
-	packet = T2A(str_packet);
-	if (NULL == packet)
-		return FALSE;
-	m_data_len = str_packet.GetLength();
-	m_data = new unsigned char[m_data_len];
-	if (NULL == m_data)
-		return FALSE;
-	memcpy(m_data, packet, m_data_len);
-
-	return TRUE;
-}
-
-BOOL CSipPacket::builf_ack_request(CSipPacketInfo *inv_status_packet_info, CString local_addr,
-	WORD local_port)
-{
-	if (NULL == inv_status_packet_info)
-		return FALSE;
-
-	REQUEST_PARAMETER request_par;
-	VIA_PARAMETER via_par;
-	FROM_PARAMETER from_par;
-	TO_PARAMETER to_par;
-	CONTACT_PARAMETER recv_contact;
-	CSEQ_PARAMETER cseq_par;
-	int max_forward = 70;
-	CString call_id, random_string, str_packet, route;
-	char *packet = NULL;
-
-
-
-	request_par.method = SipAck;
-	if (!inv_status_packet_info->get_contact(recv_contact, 0))
-		return FALSE;
-	request_par.request_uri.user = recv_contact.contact_uri.user;
-	request_par.request_uri.host = recv_contact.contact_uri.host;//
-	request_par.request_uri.port = recv_contact.contact_uri.port;
-
-	via_par.sent_address = local_addr;
-	via_par.sent_port = local_port;
-	via_par.recvived_port = 0;
-	if (!NewGUIDString(random_string))
-		return FALSE;
-	random_string.Insert(0, _T("z9hG4bK"));
-	via_par.branch = random_string;
-
-	from_par = inv_status_packet_info->get_from();
-	to_par = inv_status_packet_info->get_to();
-	call_id = inv_status_packet_info->get_call_id();
-	cseq_par.cseq = inv_status_packet_info->get_cseq().cseq;
-	cseq_par.method = SipAck;
-	route = inv_status_packet_info->get_route();
-
-	random_string = generate_request(request_par);
-	str_packet += random_string;
-
-	random_string = generate_via(via_par);
-	str_packet += random_string;
-
-	random_string = generate_max_forwards(max_forward);
-	str_packet += random_string;
-
-	random_string = generate_from(from_par);
-	str_packet += random_string;
-
-	random_string = generate_to(to_par);
-	str_packet += random_string;
-
-	random_string = generate_call_id(call_id);
-	str_packet += random_string;
-
-	random_string = generate_cseq(cseq_par);
-	str_packet += random_string;
-
-	random_string = generate_route(route);
-	str_packet += random_string;
-
-	str_packet += _T("\r\n");
-
-	USES_CONVERSION;
-	packet = T2A(str_packet);
-	if (NULL == packet)
-		return FALSE;
-	m_data_len = str_packet.GetLength();
-	m_data = new unsigned char[m_data_len];
-	if (NULL == m_data)
-		return FALSE;
-	memcpy(m_data, packet, m_data_len);
-	return TRUE;
-}
-
-BOOL CSipPacket::build_ok_status(CSipPacketInfo *request_packet, CString local_addr,
-	WORD local_portint, CString contact_user, CSDP sdp,  STATUS_CODE status_code)
-{
-	if (NULL == request_packet)
-		return FALSE;
-
-	VIA_PARAMETER via_par;
-	FROM_PARAMETER from_par;
-	TO_PARAMETER to_par;
-	CONTACT_PARAMETER contact_par;
-	CSEQ_PARAMETER cseq_par;
-	int max_forward = 70, content_length;
-	CString str_packet, str_line, str_temp;
-	char *packet = NULL;
-
-	str_line = generate_status(status_code);
-	str_packet += str_line;
-
-	for (int i = 0; i < request_packet->get_via_array_length(); i++)
-	{
-		if (!request_packet->get_via(via_par, i))
-			return FALSE;
-		str_line = generate_via(via_par);
-		str_packet += str_line;
-	}
-	
-	str_line = generate_record_route(request_packet->get_route());
-	str_packet += str_line;
-
-	str_temp = request_packet->get_call_id();
-	str_line = generate_call_id(str_temp);
-	str_packet += str_line;
-
-	from_par = request_packet->get_from();
-	str_line = generate_from(from_par);
-	str_packet += str_line;
-
-	if (!NewGUIDString(str_temp)) return FALSE;
-	to_par = request_packet->get_to();
-	to_par.to_tag = str_temp;
-	str_line = generate_to(to_par);
-	str_packet += str_line;
-
-	cseq_par = request_packet->get_cseq();
-	str_line = generate_cseq(cseq_par);
-	str_packet += str_line;
-	
-	contact_par.contact_uri.user = contact_user;
-	contact_par.contact_uri.host = local_addr;
-	contact_par.contact_uri.port = local_portint;
-	str_line = generate_contact(contact_par);
-	str_packet += str_line;
-
-	str_line = generate_content_type(_T("application/sdp"));
-	str_packet += str_line;
-
-	str_temp = sdp.to_buffer();
-	str_line = generate_content_type_length(str_temp.GetLength());
-	str_packet += str_line;
-	str_packet += _T("\r\n");
-	//sdp
-	str_packet += str_temp;
-
-	USES_CONVERSION;
-	packet = T2A(str_packet);
-	if (NULL == packet)
-		return FALSE;
-	m_data_len = str_packet.GetLength();
-	m_data = new unsigned char[m_data_len];
-	if (NULL == m_data)
-		return FALSE;
-	memcpy(m_data, packet, m_data_len);
-
-	return TRUE;
-}
-
-//BOOL CSipPacket::FromBuffer(unsigned char * data, unsigned int data_len)
+//BOOL CSipPacket::from_buffer(char * buffer, int buffer_len)
 //{
-//	if (NULL != data)
-//	{
-//		if (NULL != m_data)
-//			delete m_data;
-//		m_data = new unsigned char[data_len];
-//		if (NULL == m_data)
-//			return FALSE;
-//		memcpy(m_data, data, data_len);
-//		m_data_len = data_len;
-//		return TRUE;
-//	}
-//
-//	return FALSE;
+//	if (NULL == buffer || buffer < 0)
+//		return FALSE;
+//	
+//	m_data = new unsigned char[buffer_len];
+//	memcpy(m_data, buffer, buffer_len);
+//	m_data_len = buffer_len;
+//	return TRUE;
 //}
-
-
+//
+//BOOL CSipPacket::build_register_request(CString username, CString password, CString server_addr,
+//	WORD server_port, CString local_addr, WORD local_port, int cseq)
+//{
+//	REQUEST_PARAMETER request_par;
+//	VIA_PARAMETER via_par;
+//	FROM_PARAMETER from_par;
+//	TO_PARAMETER to_par;
+//	CONTACT_PARAMETER contact_par;
+//	CSEQ_PARAMETER cseq_par;
+//	int max_forward = 70;
+//	CString call_id, random_string, sta_packet;
+//	char *packet = NULL;
+//
+//	
+//	request_par.method = SipRegister;
+//	request_par.request_uri.host = server_addr;
+//	request_par.request_uri.port = 0;
+//
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	random_string.Insert(0, _T("z9hG4bK"));
+//	via_par.sent_address = local_addr;
+//	via_par.sent_port = local_port;
+//	via_par.branch = random_string;
+//
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	from_par.display_info = username;
+//	from_par.from_user = username;
+//	from_par.from_host = server_addr;
+//	from_par.from_tag = random_string;
+//
+//	to_par.display_info = username;
+//	to_par.to_user = username;
+//	to_par.to_host = server_addr;
+//
+//	random_string.Format(_T("%d"), random_contact_user());
+//	contact_par.contact_uri.user = random_string;
+//	contact_par.contact_uri.host = local_addr;
+//	contact_par.contact_uri.port = local_port;
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	contact_par.parameter = random_string;
+//
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	call_id = random_string;
+//
+//	cseq_par.cseq = cseq;
+//	cseq_par.method = SipRegister;
+//
+//
+//	random_string = generate_request(request_par);
+//	sta_packet += random_string;
+//
+//	random_string = generate_via(via_par);
+//	sta_packet += random_string;
+//
+//	random_string = generate_max_forwards(max_forward);
+//	sta_packet += random_string;
+//
+//	random_string = generate_from(from_par);
+//	sta_packet += random_string;
+//
+//	random_string = generate_to(to_par);
+//	sta_packet += random_string;
+//
+//	random_string = generate_contact(contact_par);
+//	sta_packet += random_string;
+//
+//	random_string = generate_call_id(call_id);
+//	sta_packet += random_string;
+//
+//	random_string = generate_cseq(cseq_par);
+//	sta_packet += random_string;
+//
+//	sta_packet += _T("\r\n");
+//
+//	USES_CONVERSION;
+//	packet = T2A(sta_packet);
+//	if (NULL == packet)
+//		return FALSE;
+//	m_data_len = sta_packet.GetLength();
+//	m_data = new unsigned char[m_data_len];
+//	if (NULL == m_data)
+//		return FALSE;
+//	memcpy(m_data, packet, m_data_len);
+//
+//
+//	return TRUE;
+//}
+//
+//BOOL CSipPacket::builf_invite_request(CString call_name, CString username, CString contact_user,
+//	CString server_addr, WORD server_port, CString local_addr, WORD local_port, int cseq,
+//	const CString &str_sdp)
+//{
+//
+//	REQUEST_PARAMETER request_par;
+//	VIA_PARAMETER via_par;
+//	FROM_PARAMETER from_par;
+//	TO_PARAMETER to_par;
+//	CONTACT_PARAMETER contact_par;
+//	CSEQ_PARAMETER cseq_par;
+//	int max_forward = 70, content_length;
+//	CString call_id, random_string, str_packet, content_type, content_type_length;
+//	char *packet = NULL;
+//
+//
+//	request_par.method = SipInvite;
+//	request_par.request_uri.user = call_name;
+//	request_par.request_uri.host = server_addr;
+//	request_par.request_uri.port = 0;
+//
+//	via_par.sent_address = local_addr;
+//	via_par.sent_port = local_port;
+//	via_par.recvived_port = 0;
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	random_string.Insert(0, _T("z9hG4bK"));
+//	via_par.branch = random_string;
+//
+//	from_par.display_info = username;
+//	from_par.from_user = username;
+//	from_par.from_host = server_addr;
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	from_par.from_tag = random_string;
+//
+//	//to_par.display_info = call_name;
+//	to_par.to_user = call_name;
+//	to_par.to_host = server_addr;
+//
+//	contact_par.contact_uri.user = contact_user;
+//	contact_par.contact_uri.host = local_addr;
+//	contact_par.contact_uri.port = local_port;
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	contact_par.parameter = random_string;
+//
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	call_id = random_string;
+//
+//	cseq_par.cseq = cseq;
+//	cseq_par.method = SipInvite;
+//
+//	content_type = _T("Content-Type: application/sdp\r\n");
+//	content_length = str_sdp.GetLength();
+//	content_type_length.Format(_T("Content-Length: %d\r\n"), content_length);
+//
+//	random_string = generate_request(request_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_via(via_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_max_forwards(max_forward);
+//	str_packet += random_string;
+//
+//	random_string = generate_from(from_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_to(to_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_contact(contact_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_call_id(call_id);
+//	str_packet += random_string;
+//
+//	random_string = generate_cseq(cseq_par);
+//	str_packet += random_string;
+//
+//	str_packet += content_type;
+//	str_packet += content_type_length;
+//	str_packet += _T("\r\n");
+//	//sdp
+//	str_packet += str_sdp;
+//
+//	USES_CONVERSION;
+//	packet = T2A(str_packet);
+//	if (NULL == packet)
+//		return FALSE;
+//	m_data_len = str_packet.GetLength();
+//	m_data = new unsigned char[m_data_len];
+//	if (NULL == m_data)
+//		return FALSE;
+//	memcpy(m_data, packet, m_data_len);
+//
+//	return TRUE;
+//}
+//
+//BOOL CSipPacket::builf_ack_request(CSipPacketInfo *inv_status_packet_info, CString local_addr,
+//	WORD local_port)
+//{
+//	if (NULL == inv_status_packet_info)
+//		return FALSE;
+//
+//	REQUEST_PARAMETER request_par;
+//	VIA_PARAMETER via_par;
+//	FROM_PARAMETER from_par;
+//	TO_PARAMETER to_par;
+//	CONTACT_PARAMETER recv_contact;
+//	CSEQ_PARAMETER cseq_par;
+//	int max_forward = 70;
+//	CString call_id, random_string, str_packet, route;
+//	char *packet = NULL;
+//
+//
+//
+//	request_par.method = SipAck;
+//	if (!inv_status_packet_info->get_contact(recv_contact, 0))
+//		return FALSE;
+//	request_par.request_uri.user = recv_contact.contact_uri.user;
+//	request_par.request_uri.host = recv_contact.contact_uri.host;//
+//	request_par.request_uri.port = recv_contact.contact_uri.port;
+//
+//	via_par.sent_address = local_addr;
+//	via_par.sent_port = local_port;
+//	via_par.recvived_port = 0;
+//	if (!NewGUIDString(random_string))
+//		return FALSE;
+//	random_string.Insert(0, _T("z9hG4bK"));
+//	via_par.branch = random_string;
+//
+//	from_par = inv_status_packet_info->get_from();
+//	to_par = inv_status_packet_info->get_to();
+//	call_id = inv_status_packet_info->get_call_id();
+//	cseq_par.cseq = inv_status_packet_info->get_cseq().cseq;
+//	cseq_par.method = SipAck;
+//	route = inv_status_packet_info->get_route();
+//
+//	random_string = generate_request(request_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_via(via_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_max_forwards(max_forward);
+//	str_packet += random_string;
+//
+//	random_string = generate_from(from_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_to(to_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_call_id(call_id);
+//	str_packet += random_string;
+//
+//	random_string = generate_cseq(cseq_par);
+//	str_packet += random_string;
+//
+//	random_string = generate_route(route);
+//	str_packet += random_string;
+//
+//	str_packet += _T("\r\n");
+//
+//	USES_CONVERSION;
+//	packet = T2A(str_packet);
+//	if (NULL == packet)
+//		return FALSE;
+//	m_data_len = str_packet.GetLength();
+//	m_data = new unsigned char[m_data_len];
+//	if (NULL == m_data)
+//		return FALSE;
+//	memcpy(m_data, packet, m_data_len);
+//	return TRUE;
+//}
+//
+//BOOL CSipPacket::build_ok_status(CSipPacketInfo *request_packet, CString local_addr,
+//	WORD local_portint, CString contact_user, CSDP sdp,  STATUS_CODE status_code)
+//{
+//	if (NULL == request_packet)
+//		return FALSE;
+//
+//	VIA_PARAMETER via_par;
+//	FROM_PARAMETER from_par;
+//	TO_PARAMETER to_par;
+//	CONTACT_PARAMETER contact_par;
+//	CSEQ_PARAMETER cseq_par;
+//	int max_forward = 70, content_length;
+//	CString str_packet, str_line, str_temp;
+//	char *packet = NULL;
+//
+//	str_line = generate_status(status_code);
+//	str_packet += str_line;
+//
+//	for (int i = 0; i < request_packet->get_via_array_length(); i++)
+//	{
+//		if (!request_packet->get_via(via_par, i))
+//			return FALSE;
+//		str_line = generate_via(via_par);
+//		str_packet += str_line;
+//	}
+//	
+//	str_line = generate_record_route(request_packet->get_route());
+//	str_packet += str_line;
+//
+//	str_temp = request_packet->get_call_id();
+//	str_line = generate_call_id(str_temp);
+//	str_packet += str_line;
+//
+//	from_par = request_packet->get_from();
+//	str_line = generate_from(from_par);
+//	str_packet += str_line;
+//
+//	if (!NewGUIDString(str_temp)) return FALSE;
+//	to_par = request_packet->get_to();
+//	to_par.to_tag = str_temp;
+//	str_line = generate_to(to_par);
+//	str_packet += str_line;
+//
+//	cseq_par = request_packet->get_cseq();
+//	str_line = generate_cseq(cseq_par);
+//	str_packet += str_line;
+//	
+//	contact_par.contact_uri.user = contact_user;
+//	contact_par.contact_uri.host = local_addr;
+//	contact_par.contact_uri.port = local_portint;
+//	str_line = generate_contact(contact_par);
+//	str_packet += str_line;
+//
+//	str_line = generate_content_type(_T("application/sdp"));
+//	str_packet += str_line;
+//
+//	str_temp = sdp.to_buffer();
+//	str_line = generate_content_type_length(str_temp.GetLength());
+//	str_packet += str_line;
+//	str_packet += _T("\r\n");
+//	//sdp
+//	str_packet += str_temp;
+//
+//	USES_CONVERSION;
+//	packet = T2A(str_packet);
+//	if (NULL == packet)
+//		return FALSE;
+//	m_data_len = str_packet.GetLength();
+//	m_data = new unsigned char[m_data_len];
+//	if (NULL == m_data)
+//		return FALSE;
+//	memcpy(m_data, packet, m_data_len);
+//
+//	return TRUE;
+//}
 
 //BOOL CSipPacket::build_register_request(CString str_server_addr, WORD server_port,
 //	CString str_local_addr, WORD local_port, CString username, CString password)
@@ -561,26 +532,26 @@ BOOL CSipPacket::build_ok_status(CSipPacketInfo *request_packet, CString local_a
 //	return TRUE;
 //}
 
-unsigned char * CSipPacket::get_data(int &data_len)
-{
-	unsigned char * data = NULL;
+//unsigned char * CSipPacket::get_data(int &data_len)
+//{
+//	unsigned char * data = NULL;
+//
+//	if (m_data_len > 0)
+//	{
+//		data = new unsigned char[m_data_len];
+//		if (NULL != data)
+//		{
+//			memcpy(data, m_data, m_data_len);
+//			data_len = m_data_len;
+//		}
+//	}
+//
+//	return data;
+//}
 
-	if (m_data_len > 0)
-	{
-		data = new unsigned char[m_data_len];
-		if (NULL != data)
-		{
-			memcpy(data, m_data, m_data_len);
-			data_len = m_data_len;
-		}
-	}
-
-	return data;
-}
 
 
-
-CString CSipPacket::generate_status(STATUS_CODE status_code)
+BOOL CSipPacket::generate_status_line(CString &strStatusLine, STATUS_CODE status_code)
 {
 	CString str_line;
 
@@ -596,13 +567,15 @@ CString CSipPacket::generate_status(STATUS_CODE status_code)
 		str_line.Format(_T("SIP/2.0 200 OK\r\n"));
 		break;
 	default:
+		return FALSE;
 		break;
 	}
-	
-	return str_line;
+	strStatusLine = str_line;
+
+	return TRUE;
 }
 
-CString CSipPacket::generate_request(REQUEST_PARAMETER request_parameter)
+BOOL CSipPacket::generate_request_line(CString &strRequestLine,  REQUEST_PARAMETER request_parameter)
 {
 	CString str_value, str_temp;
 
@@ -621,7 +594,7 @@ CString CSipPacket::generate_request(REQUEST_PARAMETER request_parameter)
 		str_value.Format(_T("BYE sip:"));
 		break;
 	default:
-		return str_value;
+		return FALSE;
 		break;
 	}
 	if (!request_parameter.request_uri.user.IsEmpty())
@@ -637,11 +610,12 @@ CString CSipPacket::generate_request(REQUEST_PARAMETER request_parameter)
 	}
 
 	str_value += " SIP/2.0\r\n";
+	strRequestLine = str_value;
 
-	return str_value;
+	return TRUE;
 }
 
-CString CSipPacket::generate_via(VIA_PARAMETER via_parameter)
+CString CSipPacket::generate_via_line(VIA_PARAMETER via_parameter)
 {
 	CString str_via, str_temp;
 
@@ -662,7 +636,7 @@ CString CSipPacket::generate_via(VIA_PARAMETER via_parameter)
 	return str_via;
 }
 
-CString CSipPacket::generate_from(FROM_PARAMETER from_parameter)
+CString CSipPacket::generate_from_line(FROM_PARAMETER from_parameter)
 {
 	CString str_from, str_temp;
 
@@ -684,7 +658,7 @@ CString CSipPacket::generate_from(FROM_PARAMETER from_parameter)
 	return str_from;
 }
 
-CString CSipPacket::generate_to(TO_PARAMETER to_parameter)
+CString CSipPacket::generate_to_line(TO_PARAMETER to_parameter)
 {
 	CString str_to, str_temp;
 
@@ -707,7 +681,7 @@ CString CSipPacket::generate_to(TO_PARAMETER to_parameter)
 
 }
 
-CString CSipPacket::generate_contact(CONTACT_PARAMETER contact_parameter)
+CString CSipPacket::generate_contact_line(CONTACT_PARAMETER contact_parameter)
 {
 	CString contact_line, str_temp;
 
@@ -723,7 +697,7 @@ CString CSipPacket::generate_contact(CONTACT_PARAMETER contact_parameter)
 	return contact_line;
 }
 
-CString CSipPacket::generate_max_forwards(int max_forwards)
+CString CSipPacket::generate_max_forwards_line(int max_forwards)
 {
 	CString str_max_forwards;
 
@@ -732,7 +706,7 @@ CString CSipPacket::generate_max_forwards(int max_forwards)
 	return str_max_forwards;
 }
 
-CString CSipPacket::generate_call_id(const CString & call_id)
+CString CSipPacket::generate_callid_line(const CString & call_id)
 {
 	CString str_call_id;
 
@@ -741,7 +715,7 @@ CString CSipPacket::generate_call_id(const CString & call_id)
 	return str_call_id;
 }
 
-CString CSipPacket::generate_cseq(CSEQ_PARAMETER cseq_parameter)
+BOOL CSipPacket::generate_cseq_line(CString &strCSeqLine, CSEQ_PARAMETER cseq_parameter)
 {
 	CString str_cseq, str_method;
 
@@ -760,14 +734,17 @@ CString CSipPacket::generate_cseq(CSEQ_PARAMETER cseq_parameter)
 		str_method = _T("BYE");
 		break;
 	default:
+		return FALSE;
 		break;
 	}
 	str_cseq.Format(_T("CSeq: %d %s\r\n"), cseq_parameter.cseq, str_method);
+	strCSeqLine = str_cseq;
+
 	
-	return str_cseq;
+	return TRUE;
 }
 
-CString CSipPacket::generate_route(CString route)
+CString CSipPacket::generate_route_line(CString route)
 {
 	CString str_route;
 
@@ -776,7 +753,7 @@ CString CSipPacket::generate_route(CString route)
 	return str_route;
 }
 
-CString CSipPacket::generate_record_route(CString route)
+CString CSipPacket::generate_record_route_line(CString route)
 {
 	CString str_route;
 
@@ -785,7 +762,7 @@ CString CSipPacket::generate_record_route(CString route)
 	return str_route;
 }
 
-CString CSipPacket::generate_content_type(const CString & content_type)
+CString CSipPacket::generate_content_type_line(const CString & content_type)
 {
 	CString str_content_type;
 
@@ -794,7 +771,7 @@ CString CSipPacket::generate_content_type(const CString & content_type)
 	return str_content_type;
 }
 
-CString CSipPacket::generate_content_type_length(int content_length)
+CString CSipPacket::generate_content_type_length_line(int content_length)
 {
 	CString str_content_type_length;
 
@@ -803,10 +780,19 @@ CString CSipPacket::generate_content_type_length(int content_length)
 	return str_content_type_length;
 }
 
-//void CSipPacket::packet_add_line(CString str_line)
-//{
-//	m_data += str_line;
-//}
+void CSipPacket::build_packet(const CStringArray & arrLineData)
+{
+	for (int i = 0; i < arrLineData.GetSize(); i++)
+	{
+		m_strData += arrLineData.GetAt(i);
+	}
+}
+
+CString CSipPacket::get_packet_data()
+{
+	return m_strData;
+}
+
 
 BOOL CSipPacket::NewGUIDString(CString & strGUID)
 {
@@ -828,6 +814,23 @@ BOOL CSipPacket::NewGUIDString(CString & strGUID)
 	return TRUE;
 }
 
+int CSipPacket::new_random_user()
+{
+	int random = 0, num = 0;
+	LARGE_INTEGER seed;
+
+	for (int i = 0; i < 8; i++)
+	{
+		QueryPerformanceFrequency(&seed);
+		QueryPerformanceCounter(&seed);
+		srand(seed.QuadPart);//初始化一个以微秒为单位的时间种子
+		random = rand() % 10;//产生一个随机数
+		num = num * 10 + random;
+	}
+
+	return num;
+}
+
 CSipPacketInfo::CSipPacketInfo()
 {
 }
@@ -842,14 +845,11 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 		return FALSE;
 	
 	char *data = NULL;
-	int data_len = 0, i = 0, j = 0, flag = 0;
+	int i = 0, j = 0, flag = 0;
 	CString str_data, str_line;
 
-	data = (char *)packet->get_data(data_len);
-	if (NULL == data)
-		return FALSE;
-	str_data = data;
 
+	str_data = packet->get_packet_data();
 	//request/status
 	i= str_data.Find(_T("\r\n"));
 	if (i < 0)
@@ -986,6 +986,8 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 		str_line = str_data.Right(str_data.GetLength() - i);
 		USES_CONVERSION;
 		data = T2A(str_line);
+		if (NULL == data)
+			return FALSE;
 		if (!m_sdp_info.from_buffer(data, str_data.GetLength() - i))
 			return FALSE;
 	}

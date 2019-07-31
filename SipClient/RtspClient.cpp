@@ -703,7 +703,7 @@ DWORD CRtspClient::DoReceiveAudioStream()
 	}
 	if (NULL != buf)
 	{
-		delete buf;
+		delete [] buf;
 		buf = NULL;
 	}
 
@@ -743,7 +743,7 @@ DWORD CRtspClient::DoReceiveVideoStream()
 
 	if (NULL != buf)
 	{
-		delete buf;
+		delete [] buf;
 		buf = NULL;
 	}
 
