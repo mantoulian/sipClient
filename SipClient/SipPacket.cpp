@@ -2,6 +2,9 @@
 #include "stdafx.h"
 #include "SipPacket.h"
 
+
+#define PACK_SIZE 4096
+
 //int random_contact_user()
 //{
 //	int random = 0, num = 0;
@@ -21,23 +24,177 @@
 
 CSipPacket::CSipPacket()
 {
+	m_data = new unsigned char[PACK_SIZE];
+	m_len = 0;
 }
 
 
 CSipPacket::~CSipPacket()
 {
+	if (NULL != m_data)
+		delete m_data;
+
+	m_len = 0;
 }
 
-//BOOL CSipPacket::from_buffer(char * buffer, int buffer_len)
+//BOOL CSipPacket::init()
 //{
-//	if (NULL == buffer || buffer < 0)
-//		return FALSE;
-//	
-//	m_data = new unsigned char[buffer_len];
-//	memcpy(m_data, buffer, buffer_len);
-//	m_data_len = buffer_len;
+//	if (NULL == m_data)
+//	{
+//		m_data = new unsigned char[PACK_SIZE];
+//		if (NULL == m_data)
+//			return FALSE;
+//		m_len = 0;
+//	}
+//
 //	return TRUE;
 //}
+
+BOOL CSipPacket::build_REG_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards,
+	FROM_PARAMETER from, TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id, int cseq)
+{
+	BOOL ret = FALSE;
+	int i = 0;
+	CString line_data, packet;
+	CSEQ_PARAMETER cseq_par = { 0 };
+
+
+	if (!generate_request_line(line_data, req))
+		return FALSE;
+	packet += line_data;
+
+	line_data = generate_via_line(via);
+	packet += line_data;
+
+	line_data = generate_max_forwards_line(max_forwards);
+	packet += line_data;
+
+	line_data = generate_from_line(from);
+	packet += line_data;
+
+	line_data = generate_to_line(to);
+	packet += line_data;
+
+	line_data = generate_contact_line(contact);
+	packet += line_data;
+
+	line_data = generate_callid_line(call_id);
+	packet += line_data;
+
+	cseq_par.method = SipRegister;
+	cseq_par.cseq = cseq;
+	if (!generate_cseq_line(line_data, cseq_par))
+		return FALSE;
+	packet += line_data;
+
+	USES_CONVERSION;
+	char *p = T2A(packet);
+	if (NULL == p)
+		return FALSE;
+	i= packet.GetLength();
+	i > PACK_SIZE ? m_len = PACK_SIZE : m_len = i;
+	memcpy(m_data, p, m_len);
+
+	return TRUE;
+}
+
+BOOL CSipPacket::build_INV_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards,
+	FROM_PARAMETER from, TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id,
+	int cseq, const CString & sdp)
+{
+
+	BOOL ret = FALSE;
+	int i = 0;
+	CString line_data, packet;
+	CSEQ_PARAMETER cseq_par = { 0 };
+
+
+	if (!generate_request_line(line_data, req))
+		return FALSE;
+	packet += line_data;
+
+	line_data = generate_via_line(via);
+	packet += line_data;
+
+	line_data = generate_max_forwards_line(max_forwards);
+	packet += line_data;
+
+	line_data = generate_from_line(from);
+	packet += line_data;
+
+	line_data = generate_to_line(to);
+	packet += line_data;
+
+	line_data = generate_contact_line(contact);
+	packet += line_data;
+
+	line_data = generate_callid_line(call_id);
+	packet += line_data;
+
+	cseq_par.method = SipRegister;
+	cseq_par.cseq = cseq;
+	if (!generate_cseq_line(line_data, cseq_par))
+		return FALSE;
+	packet += line_data;
+
+	packet += sdp;
+
+	USES_CONVERSION;
+	char *p = T2A(packet);
+	if (NULL == p)
+		return FALSE;
+	i = packet.GetLength();
+	i > PACK_SIZE ? m_len = PACK_SIZE : m_len = i;
+	memcpy(m_data, p, m_len);
+
+	return TRUE;
+
+}
+
+BOOL CSipPacket::build_ACK_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards,
+	FROM_PARAMETER from, TO_PARAMETER to, const CString call_id, int cseq)
+{
+
+
+
+
+	return 0;
+}
+
+BOOL CSipPacket::build_OK_packet(REQUEST_PARAMETER req)
+{
+	return 0;
+}
+
+//BOOL CSipPacket::build_OK_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards,
+//	FROM_PARAMETER from, TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id, int cseq)
+//{
+//	return 0;
+//}
+
+CString CSipPacket::build_via_branch(const CString & str)
+{
+	CString branch;
+
+	branch = _T("z9hG4bK");
+	branch += str;
+
+
+	return branch;
+}
+
+BOOL CSipPacket::from_buffer(char * buffer, int buffer_len)
+{
+	if (NULL == buffer || buffer < 0)
+		return FALSE;
+
+	buffer_len > PACK_SIZE ? m_len = PACK_SIZE : m_len = buffer_len;
+
+	if (m_data)
+		memcpy(m_data, buffer, m_len);
+		
+	return TRUE;
+}
 //
 //BOOL CSipPacket::build_register_request(CString username, CString password, CString server_addr,
 //	WORD server_port, CString local_addr, WORD local_port, int cseq)
@@ -780,18 +937,19 @@ CString CSipPacket::generate_content_type_length_line(int content_length)
 	return str_content_type_length;
 }
 
-void CSipPacket::build_packet(const CStringArray & arrLineData)
-{
-	for (int i = 0; i < arrLineData.GetSize(); i++)
-	{
-		m_strData += arrLineData.GetAt(i);
-	}
-}
 
-CString CSipPacket::get_packet_data()
-{
-	return m_strData;
-}
+
+
+//BOOL CSipPacket::get_data(unsigned char * buf, int len)
+//{
+//	if (len < m_len || NULL == buf)
+//		return FALSE;
+//
+//	memcpy(buf, m_data, m_len);
+//
+//
+//	return TRUE;
+//}
 
 
 BOOL CSipPacket::NewGUIDString(CString & strGUID)
@@ -814,8 +972,9 @@ BOOL CSipPacket::NewGUIDString(CString & strGUID)
 	return TRUE;
 }
 
-int CSipPacket::new_random_user()
+CString CSipPacket::new_contact_user()
 {
+	CString user;
 	int random = 0, num = 0;
 	LARGE_INTEGER seed;
 
@@ -828,7 +987,9 @@ int CSipPacket::new_random_user()
 		num = num * 10 + random;
 	}
 
-	return num;
+	user.Format(_T("%d"), num);
+
+	return user;
 }
 
 CSipPacketInfo::CSipPacketInfo()
@@ -844,12 +1005,16 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 	if (NULL == packet)
 		return FALSE;
 	
-	char *data = NULL;
-	int i = 0, j = 0, flag = 0;
+	//unsigned char data[PACK_SIZE] = { 0 };
+	unsigned char *data = NULL;
+	char *p = NULL;
+	int i = 0, j = 0, flag = 0, data_len = 0;
 	CString str_data, str_line;
 
 
-	str_data = packet->get_packet_data();
+	data = packet->get_data();
+	if (data == NULL)
+		return FALSE;
 	//request/status
 	i= str_data.Find(_T("\r\n"));
 	if (i < 0)
@@ -985,10 +1150,10 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 		i += strlen("\r\n\r\nv=");
 		str_line = str_data.Right(str_data.GetLength() - i);
 		USES_CONVERSION;
-		data = T2A(str_line);
-		if (NULL == data)
+		p = T2A(str_line);
+		if (NULL == p)
 			return FALSE;
-		if (!m_sdp_info.from_buffer(data, str_data.GetLength() - i))
+		if (!m_sdp_info.from_buffer(p, str_data.GetLength() - i))
 			return FALSE;
 	}
 
@@ -1534,3 +1699,8 @@ BOOL CSipPacketInfo::content_type_length_string_to_length(int & length, const CS
 //{
 //	return 0;
 //}
+
+BOOL NewGUIDString(CString & strGUID)
+{
+	return 0;
+}

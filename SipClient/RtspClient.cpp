@@ -491,7 +491,7 @@ BOOL CRtspClient::open_url(CString strUrl)
 	//SDP_INFO *sdp_info = m_CameraSdp.get_sdp_info();
 	//if (NULL == sdp_info)
 	//	return FALSE;
-	if (m_CameraSdp.get_audio_media())//如果sdp中有音频信息，
+	if (m_CameraSdp.m_bAudioMedia)//如果sdp中有音频信息，
 	{
 		if (!m_udpAudio.Create(m_usLocalRtpAudioPort, SOCK_DGRAM))
 			return FALSE;
@@ -503,7 +503,7 @@ BOOL CRtspClient::open_url(CString strUrl)
 
 		m_nCSeq++;
 		if (!buildSetUpMessage(requestMess, m_nCSeq++, strUrl,
-			m_CameraSdp.get_audio_track_id(), m_usLocalRtpAudioPort))
+			m_CameraSdp.m_strAudioTrackId, m_usLocalRtpAudioPort))
 		{
 			return bRet;
 		}
@@ -537,7 +537,7 @@ BOOL CRtspClient::open_url(CString strUrl)
 		::ResumeThread(m_hRecvAudioThread);
 	}
 
-	if (m_CameraSdp.get_video_media())//视频
+	if (m_CameraSdp.m_bVideoMedia)//视频
 	{
 		strIP.Empty();
 		if (!m_udpVideo.Create(m_usLocalRtpVideoPort, SOCK_DGRAM))
@@ -550,7 +550,7 @@ BOOL CRtspClient::open_url(CString strUrl)
 
 		m_nCSeq++;
 		if (!buildSetUpMessage(requestMess, m_nCSeq++, strUrl,
-			m_CameraSdp.get_video_track_id(), m_usLocalRtpVideoPort))
+			m_CameraSdp.m_strVideoTrackId, m_usLocalRtpVideoPort))
 		{
 			return bRet;
 		}

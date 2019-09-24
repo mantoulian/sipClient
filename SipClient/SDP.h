@@ -30,47 +30,38 @@ public:
 	~CSDP();
 
 	BOOL from_buffer(char * buffer, int buf_len);
-	CString to_buffer();
+	CString to_string();
 
-	void set_address(CString str_address);
-
-	void set_audio_media(BOOL media);
-	void set_audio_address(CString str_address);
-	void set_audio_port(unsigned short port);
-	void set_audio_load_type(int type);
-	void set_audio_track_id(CString track_id);
-	void set_audio_rtp_map(CString rtp_map);
-	void set_audio_fmtp(CString fmtp);
-
-	void set_video_media(BOOL media);
-	void set_video_address(CString str_address);
-	void set_video_port(unsigned short port);
-	void set_video_load_type(int type);
-	void set_video_track_id(CString track_id);
-	void set_video_rtp_map(CString rtp_map);
-	void set_video_fmtp(CString fmtp);
-
-
-	CString get_address();
-
-	BOOL get_audio_media();
-	CString get_audio_address();
-	unsigned short get_audio_port();
-	int get_audio_load_type();
-	CString get_audio_track_id();
-	CString get_audio_rtp_map();
-	CString get_audio_fmtp();
-
-	BOOL get_video_media();
-	CString get_video_address();
-	unsigned short get_video_port();
-	int get_video_load_type();
-	CString get_video_track_id();
-	CString get_video_rtp_map();
-	CString get_video_fmtp();
-
-
-
+	//void set_address(CString str_address);
+	//void set_audio_media(BOOL media);
+	//void set_audio_address(CString str_address);
+	//void set_audio_port(unsigned short port);
+	//void set_audio_load_type(int type);
+	//void set_audio_track_id(CString track_id);
+	//void set_audio_rtp_map(CString rtp_map);
+	//void set_audio_fmtp(CString fmtp);
+	//void set_video_media(BOOL media);
+	//void set_video_address(CString str_address);
+	//void set_video_port(unsigned short port);
+	//void set_video_load_type(int type);
+	//void set_video_track_id(CString track_id);
+	//void set_video_rtp_map(CString rtp_map);
+	//void set_video_fmtp(CString fmtp);
+	//CString get_address();
+	//BOOL get_audio_media();
+	//CString get_audio_address();
+	//unsigned short get_audio_port();
+	//int get_audio_load_type();
+	//CString get_audio_track_id();
+	//CString get_audio_rtp_map();
+	//CString get_audio_fmtp();
+	//BOOL get_video_media();
+	//CString get_video_address();
+	//unsigned short get_video_port();
+	//int get_video_load_type();
+	//CString get_video_track_id();
+	//CString get_video_rtp_map();
+	//CString get_video_fmtp();
 
 public:
 	CString m_strAddress;

@@ -25,15 +25,6 @@ typedef enum status_code
 	ok = 200
 }STATUS_CODE;
 
-typedef enum client_status
-{
-	uninitialized,
-	init_ok,
-	register_ok,
-	inviteing,
-	calling,
-}CLIENT_STATUS;
-
 typedef struct sip_uri
 {
 	CString user;
@@ -88,24 +79,38 @@ typedef struct cseq_parameter
 class CSipPacketInfo;
 
 
+
+
 class AFX_EXT_CLASS CSipPacket
 {
 public:
 	CSipPacket();
-	~CSipPacket();
 
-	//BOOL from_buffer(char * buffer, int buffer_len);
-	//BOOL build_register_request(CString user_name, CString password, CString server_addr, WORD server_port,
-	//	CString local_addr, WORD local_port, int cseq);
-	//BOOL builf_invite_request(CString call_name, CString username, CString contact_user,
-	//	CString server_addr, WORD server_port, CString local_addr, WORD local_port, int cseq,
-	//	const CString &str_sdp);
-	//BOOL builf_ack_request(CSipPacketInfo *inv_status_packet_info, CString local_addr,
-	//	WORD local_port);
-	////status
-	//BOOL build_ok_status(CSipPacketInfo *request_packet, CString local_addr,
-	//	WORD local_portint, CString contact_user, CSDP sdp, STATUS_CODE status_code);
-	//unsigned char *get_data(int &data_len);
+	~CSipPacket();
+	//BOOL init();
+
+	BOOL build_REG_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards, FROM_PARAMETER from,
+		TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id, int cseq);
+
+	BOOL build_INV_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards, FROM_PARAMETER from,
+		TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id, int cseq, const CString &sdp);
+
+	BOOL build_ACK_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards, FROM_PARAMETER from,
+		TO_PARAMETER to, const CString call_id, int cseq);
+
+	BOOL build_OK_packet(REQUEST_PARAMETER req);
+
+	BOOL NewGUIDString(CString &strGUID);
+	CString build_via_branch(const CString &str);
+	CString new_contact_user();
+
+
+	BOOL from_buffer(char * buffer, int buffer_len);
+	unsigned char * get_data() { return m_data; }
+	int get_data_len() { return m_len; }
+	
+
+protected:
 
 	 BOOL generate_status_line(CString &strStatusLine, STATUS_CODE status_parameter);
 	 BOOL generate_request_line(CString &strRequestLine, REQUEST_PARAMETER request_parameter);
@@ -121,15 +126,12 @@ public:
 	 CString generate_content_type_line(const CString &content_type);
 	 CString generate_content_type_length_line(int content_length);
 
-
-	 void build_packet(const CStringArray & arrLineData);
-	 CString get_packet_data();
-
-	BOOL NewGUIDString(CString &strGUID);
-	int new_random_user();
+	
 
 private:
-	CString m_strData;
+	unsigned char *m_data;
+	int m_len;
+
 };
 
 class AFX_EXT_CLASS CSipPacketInfo

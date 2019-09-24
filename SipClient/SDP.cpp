@@ -295,7 +295,7 @@ BOOL CSDP::from_buffer(char * buffer, int buf_len)
 	return TRUE;
 
 }
-CString CSDP::to_buffer()
+CString CSDP::to_string()
 {
 	CString buf, temp;
 
@@ -355,155 +355,155 @@ CString CSDP::to_buffer()
 
 }
 
-void CSDP::set_address(CString str_address)
-{
-	m_strAddress = str_address;
-}
-
-void CSDP::set_audio_media(BOOL media)
-{
-	m_bAudioMedia = media;
-}
-
-void CSDP::set_audio_address(CString str_address)
-{
-	m_strAudioIP = str_address;
-}
-
-void CSDP::set_video_media(BOOL media)
-{
-	m_bVideoMedia = media;
-}
-
-void CSDP::set_video_address(CString str_address)
-{
-	m_strVideoIP = str_address;
-}
-
-void CSDP::set_audio_port(unsigned short port)
-{
-	m_usAudioPort = port;
-}
-
-void CSDP::set_audio_load_type(int type)
-{
-	m_nAudioLoadType = type;
-}
-
-void CSDP::set_audio_track_id(CString track_id)
-{
-	m_strAudioTrackId = track_id;
-}
-
-void CSDP::set_audio_rtp_map(CString rtp_map)
-{
-	m_strAudioRtpMap = rtp_map;
-}
-
-void CSDP::set_audio_fmtp(CString fmtp)
-{
-	m_strAudioFmtp = fmtp;
-}
-
-void CSDP::set_video_port(unsigned short port)
-{
-	m_usVideoPort = port;
-}
-
-void CSDP::set_video_load_type(int type)
-{
-	m_nVideoLoadType = type;
-}
-
-void CSDP::set_video_track_id(CString track_id)
-{
-	m_strVideoTrackId = track_id;
-}
-
-void CSDP::set_video_rtp_map(CString rtp_map)
-{
-	m_strVideoRtpMap = rtp_map;
-}
-
-void CSDP::set_video_fmtp(CString fmtp)
-{
-	m_strVideoFmtp = fmtp;
-}
-
-CString CSDP::get_address()
-{
-	return m_strAddress;
-}
-
-BOOL CSDP::get_audio_media()
-{
-	return m_bAudioMedia;
-}
-
-CString CSDP::get_audio_address()
-{
-	return m_strAudioIP;
-}
-
-BOOL CSDP::get_video_media()
-{
-	return m_bVideoMedia;
-}
-
-CString CSDP::get_video_address()
-{
-	return m_strVideoIP;
-}
-
-unsigned short CSDP::get_audio_port()
-{
-	return m_usAudioPort;
-}
-
-int CSDP::get_audio_load_type()
-{
-	return m_nAudioLoadType;
-}
-
-CString CSDP::get_audio_track_id()
-{
-	return m_strAudioTrackId;
-}
-
-CString CSDP::get_audio_rtp_map()
-{
-	return m_strAudioRtpMap;
-}
-
-CString CSDP::get_audio_fmtp()
-{
-	return m_strAudioFmtp;
-}
-
-unsigned short CSDP::get_video_port()
-{
-	return m_usVideoPort;
-}
-
-int CSDP::get_video_load_type()
-{
-	return m_nVideoLoadType;
-}
-
-CString CSDP::get_video_track_id()
-{
-	return m_strVideoTrackId;
-}
-
-CString CSDP::get_video_rtp_map()
-{
-	return m_strVideoRtpMap;
-}
-
-CString CSDP::get_video_fmtp()
-{
-	return m_strVideoFmtp;
-}
+//void CSDP::set_address(CString str_address)
+//{
+//	m_strAddress = str_address;
+//}
+//
+//void CSDP::set_audio_media(BOOL media)
+//{
+//	m_bAudioMedia = media;
+//}
+//
+//void CSDP::set_audio_address(CString str_address)
+//{
+//	m_strAudioIP = str_address;
+//}
+//
+//void CSDP::set_video_media(BOOL media)
+//{
+//	m_bVideoMedia = media;
+//}
+//
+//void CSDP::set_video_address(CString str_address)
+//{
+//	m_strVideoIP = str_address;
+//}
+//
+//void CSDP::set_audio_port(unsigned short port)
+//{
+//	m_usAudioPort = port;
+//}
+//
+//void CSDP::set_audio_load_type(int type)
+//{
+//	m_nAudioLoadType = type;
+//}
+//
+//void CSDP::set_audio_track_id(CString track_id)
+//{
+//	m_strAudioTrackId = track_id;
+//}
+//
+//void CSDP::set_audio_rtp_map(CString rtp_map)
+//{
+//	m_strAudioRtpMap = rtp_map;
+//}
+//
+//void CSDP::set_audio_fmtp(CString fmtp)
+//{
+//	m_strAudioFmtp = fmtp;
+//}
+//
+//void CSDP::set_video_port(unsigned short port)
+//{
+//	m_usVideoPort = port;
+//}
+//
+//void CSDP::set_video_load_type(int type)
+//{
+//	m_nVideoLoadType = type;
+//}
+//
+//void CSDP::set_video_track_id(CString track_id)
+//{
+//	m_strVideoTrackId = track_id;
+//}
+//
+//void CSDP::set_video_rtp_map(CString rtp_map)
+//{
+//	m_strVideoRtpMap = rtp_map;
+//}
+//
+//void CSDP::set_video_fmtp(CString fmtp)
+//{
+//	m_strVideoFmtp = fmtp;
+//}
+//
+//CString CSDP::get_address()
+//{
+//	return m_strAddress;
+//}
+//
+//BOOL CSDP::get_audio_media()
+//{
+//	return m_bAudioMedia;
+//}
+//
+//CString CSDP::get_audio_address()
+//{
+//	return m_strAudioIP;
+//}
+//
+//BOOL CSDP::get_video_media()
+//{
+//	return m_bVideoMedia;
+//}
+//
+//CString CSDP::get_video_address()
+//{
+//	return m_strVideoIP;
+//}
+//
+//unsigned short CSDP::get_audio_port()
+//{
+//	return m_usAudioPort;
+//}
+//
+//int CSDP::get_audio_load_type()
+//{
+//	return m_nAudioLoadType;
+//}
+//
+//CString CSDP::get_audio_track_id()
+//{
+//	return m_strAudioTrackId;
+//}
+//
+//CString CSDP::get_audio_rtp_map()
+//{
+//	return m_strAudioRtpMap;
+//}
+//
+//CString CSDP::get_audio_fmtp()
+//{
+//	return m_strAudioFmtp;
+//}
+//
+//unsigned short CSDP::get_video_port()
+//{
+//	return m_usVideoPort;
+//}
+//
+//int CSDP::get_video_load_type()
+//{
+//	return m_nVideoLoadType;
+//}
+//
+//CString CSDP::get_video_track_id()
+//{
+//	return m_strVideoTrackId;
+//}
+//
+//CString CSDP::get_video_rtp_map()
+//{
+//	return m_strVideoRtpMap;
+//}
+//
+//CString CSDP::get_video_fmtp()
+//{
+//	return m_strVideoFmtp;
+//}
 
 //SDP_INFO * CSDP::get_sdp_info()
 //{
