@@ -52,14 +52,14 @@ public:
 	CRtpPlayer();
 	virtual ~CRtpPlayer();
 
-	BOOL init(CString str_fmtp);
+	BOOL init();
 
 	//BOOL set_sps_pps(CString str_fmtp);
 
 	CRtpPacketCache* GetRtpCache();
 	void SetRtpCache(CRtpPacketCache *cache);
 
-	void Play(CWnd* pCWnd);
+	BOOL Play(const CString &fmtp, CWnd* pCWnd);
 
 
 private:

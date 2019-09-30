@@ -41,7 +41,7 @@ public:
 	CRtpPlayer m_player_2;
 	CRtpPacketCache local_play_cache;
 	CRtpPacketCache send_cache;
-	CRtpPacketCache recv_cache;
+	//CRtpPacketCache recv_cache;
 
 };
 

@@ -14,6 +14,7 @@ typedef struct rtsp_message
 typedef enum respond_status
 {
 	ok = 200,
+	Unauthorized = 401,
 	other
 }RESPOND_STATUS;
 
@@ -150,49 +151,132 @@ BOOL buildGetParamemter(RTSP_MESSAGE &rtspMess, int nCseq, CString strRtspUrl,
 	return true;
 }
 
-//取出rtsp地址中的ip和端口
-BOOL rtspUrlToAddr(CString strRtspUrl, CString &IP, unsigned short &nPort)
+//取出rtsp地址中的 用户名和密码 ip和端口
+BOOL process_url(const CString &strRtspUrl, CString & username, CString &passwd,
+	CString &IP, unsigned short &nPort)
 {
-
+	CString t_addr, t_user, t_passwd;
 	unsigned short port = 0;
+	char  url[1024] = { 0 }, *p = NULL;
 
 
 	USES_CONVERSION;
-	const char * p = T2A(strRtspUrl);
+	p = T2A(strRtspUrl);
 	if (p == NULL)
-	{
-		return false;
-	}
+		return FALSE;
+	strcpy_s(url, strRtspUrl.GetLength(), p);
 
-	p = strstr(p, ":");//找到冒号
-	if (p == NULL)
-	{
-		return false;
-	}
-	p+=3;//跳过冒号和2个斜杠
-	while (*p != ':')//遇见冒号结束
-	{
-		IP += *p;
-		p++;
-	}
-	p++;
 
-	//端口
-	while (*p != '\0')
+	p = strstr(url, "@");//有用户名和密码
+	if (p != NULL)
 	{
-		if (*p >= 48 && *p <= 57)
+		p = strstr(url, ":");
+		if (NULL == p)
+			return FALSE;
+		//user
+		p += 3;
+		while (*p != '\0' || *p != ':')
 		{
-			port = port * 10 + (*p - 48);
+			t_user += *p;
+			p++;
 		}
+		//passwd
 		p++;
+		while (*p != '\0' || *p != '@')
+		{
+			t_passwd += *p;
+			p++;
+		}
+		//user
+		p++;
+		while (*p != '\0' || *p != ':')
+		{
+			if ((*p > 47 && *p < 58) || *p == '.')
+				t_addr += *p;
+			p++;
+		}
+		//port
+		p++;
+		while (*p != '\0')
+		{
+			if (*p > 47 && *p < 58)
+				port = port * 10 + (*p - 48);
+			p++;
+		}
+
 	}
+	else//没有用户名和密码
+	{
+		p = strstr(url, ":");
+		if (NULL == p)
+			return FALSE;
+		//addr
+		p++;
+		while (*p != '\0' || *p != ':')
+		{
+			if ((*p > 47 && *p < 58) || *p == '.')
+				t_addr += *p;
+			p++;
+		}
+		//port
+		p++;
+		while (*p != '\0')
+		{
+			if (*p > 47 && *p < 58)
+				port = port * 10 + (*p - 48);
+			p++;
+
+		}
+
+	}
+
+	username = t_user;
+	passwd = t_passwd;
+	IP = t_addr;
 	nPort = port;
 
-
-	return true;
+	return TRUE;
 }
 
-//解析回应消息中的状态和Cseq
+//解析401中的realm nonce
+BOOL proc_realm_nonce(CString &realm, CString &nonce, char *mess)
+{
+	char *p = NULL;
+	CString str_realm, str_nonce;
+
+	p = strstr(mess, "realm");
+	if (p == NULL)
+		return FALSE;
+	p += strlen("realm=\"");
+	while (1)
+	{
+		if (*p == '\"' || *p == '\0')
+			break;
+		str_realm += *p;
+		p++;
+	}
+	realm = str_realm;
+
+	p = strstr(mess, "nonce");
+	if (p == NULL)
+	return FALSE;
+	p += strlen("nonce=\"");
+	while (1)
+	{
+		if (*p == '\"' || *p == '\0')
+			break;
+		str_nonce += *p;
+		p++;
+	}
+	nonce = str_nonce;
+		
+	return TRUE;
+}
+
+
+
+
+//解析回应消息中的状态和Cseq 以及
 BOOL ProcessRespondMessage(RTSP_MESSAGE &rtspMess, RESPOND_STATUS &status, int &nCseq)
 {
 	char *szTemp = NULL;
@@ -213,11 +297,13 @@ BOOL ProcessRespondMessage(RTSP_MESSAGE &rtspMess, RESPOND_STATUS &status, int &
 			nRepStatu = nRepStatu * 10 + (*szTemp - 48);
 		szTemp++;
 	}
-	switch (nRepStatu)//只判定了ok（200）状态
+	switch (nRepStatu)//只判定了ok（200）和 401 状态
 	{
 	case 200:
 		status = ok;
 		break;
+	case 401:
+		status = Unauthorized;
 	default:
 		status = other;
 		break;
@@ -247,6 +333,7 @@ BOOL ProcessRespondMessage(RTSP_MESSAGE &rtspMess, RESPOND_STATUS &status, int &
 	{
 		return false;
 	}
+
 
 	return true;
 }
@@ -404,6 +491,62 @@ BOOL CRtspClient::init(unsigned short usRtspPort, unsigned short usRtpAudioPort,
 }
 
 
+BOOL build_digest_response(CString &response, const CString &realm, const CString &nonce,
+	const CString &rtsp_url, const CString method, const CString &user, const CString &passwd)
+{
+
+	char *p = NULL;
+	int len = 0;
+	CString  str, md5_mt, md5_us, resp;
+
+	//算法：response= md5( md5(username:realm:password):nonce:md5(public_method:url) );
+	
+	//user
+	str.Format(_T("%s:%s:%s"), user, realm, passwd);
+	USES_CONVERSION;
+	p = T2A(str);
+	if (NULL == p)
+		return FALSE;
+	len = str.GetLength();
+	if (!build_md5((unsigned char *)p, len, md5_us))
+		return FALSE;
+
+	//method:url
+	str.Format(_T("%s:%s"), method, rtsp_url);
+	USES_CONVERSION;
+	p = T2A(str);
+	if (NULL == p)
+		return FALSE;
+	len = str.GetLength();
+	if (!build_md5((unsigned char *)p, len, md5_mt))
+		return FALSE;
+
+	//response
+	str.Format(_T("%s:%s:%s"), md5_us, nonce, md5_mt);
+	USES_CONVERSION;
+	p = T2A(str);
+	if (NULL == p)
+		return FALSE;
+	len = str.GetLength();
+	if (!build_md5((unsigned char *)p, len, resp))
+		return FALSE;
+
+	response = resp;
+
+	return TRUE;
+
+}
+
+CString build_basic_response()
+{
+	CString response;
+
+
+	return response;
+}
+
+
+
 //链接摄像头
 BOOL CRtspClient::open_url(CString strUrl)
 {
@@ -415,8 +558,8 @@ BOOL CRtspClient::open_url(CString strUrl)
 	unsigned short usPort;
 
 	m_strRtspUrl = strUrl;
-	//链接摄像头
-	if (rtspUrlToAddr(strUrl, m_strCameraIP, m_usCameraPort) == false)
+	//解析用户名，密码，地址，端口，链接摄像头
+	if (process_url(strUrl, m_user, m_passwd, m_strCameraIP, m_usCameraPort) == false)
 	{
 		return false;
 	}
@@ -450,6 +593,7 @@ BOOL CRtspClient::open_url(CString strUrl)
 
 
 	//发送 describe 消息，得到摄像头的sdp
+	//可能需要认证
 	m_nCSeq++;
 	if (!buildDescribeMessage(requestMess, m_nCSeq, strUrl))
 	{
@@ -465,25 +609,59 @@ BOOL CRtspClient::open_url(CString strUrl)
 	//检查响应消息状态是不是ok
 	if (ProcessRespondMessage(respondMess, rtspStatus, nRepCseq))
 	{
-		if (rtspStatus != ok)
+		//if (rtspStatus != ok)
+		//{
+		//	return bRet;
+		//}
+
+		if (rtspStatus == ok)
+		{
+			//提取sdp
+			char *sdp = strstr(respondMess.szData, "\r\n\r\nv=");
+			if (NULL == sdp)
+				return FALSE;
+			sdp += 4;
+			int rtsp_head_len = sdp - respondMess.szData;
+			int sdp_len = nCount - rtsp_head_len;
+			if (!m_CameraSdp.from_buffer(sdp, sdp_len))
+				return FALSE;
+			
+		}
+		else if (rtspStatus == Unauthorized)//需要认证
+		{
+
+			
+
+
+
+
+			char *p = NULL;
+			CString nonce, realm, presonce;
+
+			p = strstr(respondMess.szData, "Digest");
+			if (p != NULL)
+			{
+				//获取realm nonce
+				if (!proc_realm_nonce(realm, nonce, respondMess.szData))
+					return FALSE;
+				build_digest_response(presonce, realm, nonce, )
+
+			}
+			else
+			{
+				p = strstr(respondMess.szData, "Basic");
+
+			}
+
+			build_digest_response();
+		}
+		else
 		{
 			return bRet;
 		}
+
 	}
-	//提取sdp
-	char *sdp = strstr(respondMess.szData, "\r\n\r\nv=");
-	if (sdp != NULL)
-	{
-		sdp += 4;
-		int rtsp_head_len = sdp - respondMess.szData;
-		int sdp_len = nCount - rtsp_head_len;
-		//char *sdp_buf = new char[sdp_len + 1];
-		//memcpy(sdp_buf, sdp, sdp_len);
-		bRet = m_CameraSdp.from_buffer(sdp, sdp_len);
-		//delete sdp_buf;
-		if (FALSE == bRet)
-			return bRet;
-	}
+
 
 
 

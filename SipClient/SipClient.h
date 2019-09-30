@@ -2,7 +2,6 @@
 #include "RtspClient.h"
 #include "SipPacket.h"
 
-//#define SIP_LOCAL_PORT	5060
 
 
 typedef enum call_status
@@ -25,6 +24,9 @@ typedef enum client_status
 	calling,
 }CLIENT_STATUS;
 
+typedef int(*incoming_call_back)( CSipPacketInfo *packet_info);
+
+
 //typedef struct call_info
 //{
 //	CALL_STATUS sta;
@@ -40,7 +42,6 @@ typedef enum client_status
 //}CALL_INFO;
 
 
-typedef void(*incoming_call_back)(const CSipPacketInfo *packet_info);
 
 class AFX_EXT_CLASS CSipClient
 {
@@ -48,38 +49,40 @@ public:
 	CSipClient();
 	~CSipClient();
 
-	BOOL init(WORD port = 0);
+
+	BOOL init(WORD port = 0, WORD a_port = 0, WORD v_port = 0);
 	BOOL register_account(const CString &sev_addr, WORD port,
 		const CString &username, const CString &password);
 	BOOL make_call(const CString &strCallName);
 
-	//BOOL init(const CString &strServerAddress, unsigned short usServerPort,
-	//	const CString &strLocalAddress, unsigned short usLocalSipPort=0);
-
-	//BOOL register_account(const CString &strUserName, const CString &strPassword);
-
-	//BOOL make_call( const CString &strCallName, BOOL audio_media = TRUE, WORD audio_port = 0,
-	//	BOOL video_media = TRUE, WORD video_port = 0);
-
-	BOOL hangup(const CString &strCallName);
-
+	BOOL hangup(CSipPacketInfo *packet_info);
 	BOOL call_answer(CSipPacketInfo *packet_info);
 
-	//开启rtp传输
-	BOOL start_rtp_transport();
+	
+	void set_send_cache(CRtpPacketCache *cache);
+	CRtpPacketCache * get_recv_cache();
 
 	void set_coming_call_function(incoming_call_back function);
-
-	//void set_recv_cache(CRtpPacketCache *cache);
-	void set_local_sdp(const CSDP &sdp);
-
-	CRtpPacketCache * get_recv_cache();
-	void set_send_cache(CRtpPacketCache *cache);
-	//CSDP get_sdp();
 	CLIENT_STATUS get_client_status();
-	CSDP get_local_sdp();
 
-	void coming_call_back(CSipPacketInfo *packet_info);
+	BOOL set_local_sdp(const CSDP &sdp);
+	CSDP get_sdp();
+
+
+	//BOOL init(const CString &strServerAddress, unsigned short usServerPort,
+	//	const CString &strLocalAddress, unsigned short usLocalSipPort=0);
+	//BOOL register_account(const CString &strUserName, const CString &strPassword);
+	//BOOL make_call( const CString &strCallName, BOOL audio_media = TRUE, WORD audio_port = 0,
+	//	BOOL video_media = TRUE, WORD video_port = 0);
+	//BOOL hangup(const CString &strCallName);
+	//BOOL call_answer(CSipPacketInfo *packet_info);
+
+	//开启rtp传输
+	//BOOL start_rtp_transport();
+
+
+
+	//void coming_call_back(CSipPacketInfo *packet_info);
 
 protected:
 
@@ -97,14 +100,6 @@ private:
 	DWORD do_send_media();
 	DWORD do_recv_media();
 
-	//static DWORD WINAPI send_rtp_audio_thread(LPVOID lpParam);
-	//static DWORD WINAPI send_rtp_video_thread(LPVOID lpParam);
-	//static DWORD WINAPI recv_rtp_audio_thread(LPVOID lpParam);
-	//static DWORD WINAPI recv_rtp_video_thread(LPVOID lpParam);
-	//DWORD do_send_audio_rtp();
-	//DWORD do_send_video_rtp();
-	//DWORD do_recv_audio_rtp();
-	//DWORD do_recv_video_rtp();
 
 
 private:
@@ -142,10 +137,8 @@ private:
 	//handle
 	HANDLE m_recv_h;//接收sip
 	HANDLE m_proc_h;//解析sip
-	HANDLE m_send_rtp_audio_h;
-	HANDLE m_send_rtp_video_h;
-	HANDLE m_recv_rtp_audio_h;
-	HANDLE m_recv_rtp_video_h;
+	HANDLE m_send_rtp_h;
+	HANDLE m_recv_rtp_h;
 
 	//sip
 	int m_reg_cseq;
@@ -159,8 +152,8 @@ private:
 	CString m_call_id;
 	CSDP *m_sdp;
 	CSDP *m_local_sdp;
-	BOOL m_audio;
-	BOOL m_video;
+	//BOOL m_audio;
+	//BOOL m_video;
 };
 
 

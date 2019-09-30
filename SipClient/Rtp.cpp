@@ -423,7 +423,7 @@ CRtpPlayer::~CRtpPlayer()
 }
 
 #define SPS_PPS_SIZE    512
-BOOL CRtpPlayer::init(CString str_fmtp)
+BOOL CRtpPlayer::init()
 {
 	char sps_pps[SPS_PPS_SIZE] = { 0 }, *pFmtp;
 	int sps_pps_len = 0, ret = 0;
@@ -453,27 +453,29 @@ BOOL CRtpPlayer::init(CString str_fmtp)
 	if (m_codecPa == NULL)
 		return FALSE;
 
-	USES_CONVERSION;
-	pFmtp = T2A(str_fmtp);
-	if (pFmtp == NULL)
-		return FALSE;
+	//USES_CONVERSION;
+	//pFmtp = T2A(str_fmtp);
+	//if (pFmtp == NULL)
+	//	return FALSE;
 
-	//从sdp中的fmtp中获取sps pps
-	if (Get_sps_pps_From_Fmtp((unsigned char *)pFmtp, (unsigned char *)sps_pps, sps_pps_len))
-	{
-		//设置到ffmpeg
-		m_codecPa->extradata_size = sps_pps_len;
-		m_codecPa->extradata = (uint8_t*)av_malloc(sps_pps_len + AV_INPUT_BUFFER_PADDING_SIZE);
-		memcpy(m_codecPa->extradata, sps_pps, sps_pps_len);
-		ret = avcodec_parameters_to_context(m_c, m_codecPa);
-		if (ret != 0)
-			return FALSE;
-		if (avcodec_open2(m_c, m_codec, NULL) < 0)
-			return FALSE;
-		m_width = m_c->width;
-		m_height = m_c->height;
-		m_sps_pps_ok = TRUE;
-	}
+	////从sdp中的fmtp中获取sps pps
+	//if (Get_sps_pps_From_Fmtp((unsigned char *)pFmtp, (unsigned char *)sps_pps, sps_pps_len))
+	//{
+	//	//设置到ffmpeg
+	//	m_codecPa->extradata_size = sps_pps_len;
+	//	m_codecPa->extradata = (uint8_t*)av_malloc(sps_pps_len + AV_INPUT_BUFFER_PADDING_SIZE);
+	//	memcpy(m_codecPa->extradata, sps_pps, sps_pps_len);
+	//	ret = avcodec_parameters_to_context(m_c, m_codecPa);
+	//	if (ret != 0)
+	//		return FALSE;
+	//	if (avcodec_open2(m_c, m_codec, NULL) < 0)
+	//		return FALSE;
+	//	m_width = m_c->width;
+	//	m_height = m_c->height;
+	//	m_sps_pps_ok = TRUE;
+	//}
+
+
 	//解码线程
 	m_hDecodeThread = ::CreateThread(NULL, 0, DecodeVideoThread, this, CREATE_SUSPENDED, NULL);
 
@@ -493,15 +495,59 @@ CRtpPacketCache * CRtpPlayer::GetRtpCache()
 
 void CRtpPlayer::SetRtpCache(CRtpPacketCache * cache)
 {
-	m_RtpCache = cache;
+	if (NULL != cache)
+		m_RtpCache = cache;
 }
 
-void CRtpPlayer::Play(CWnd * pCWnd)
+BOOL CRtpPlayer::Play(const CString &fmtp, CWnd * pCWnd)
 {
+	if (NULL == pCWnd)
+		return FALSE;
+
+	char *pFmtp = NULL;
+	char sps_pps[512] = { 0 };
+	int sps_pps_len = 0, ret = 0;
+
+	USES_CONVERSION;
+	pFmtp = T2A(fmtp);
+	if (pFmtp == NULL)
+		return FALSE;
+
+	//从sdp中的fmtp中获取sps pps
+	if (Get_sps_pps_From_Fmtp((unsigned char *)pFmtp, (unsigned char *)sps_pps, sps_pps_len))
+	{
+		//设置到ffmpeg
+		m_codecPa->extradata_size = sps_pps_len;
+		m_codecPa->extradata = (uint8_t*)av_malloc(sps_pps_len + AV_INPUT_BUFFER_PADDING_SIZE);
+		memcpy(m_codecPa->extradata, sps_pps, sps_pps_len);
+		ret = avcodec_parameters_to_context(m_c, m_codecPa);
+		if (ret != 0)
+			return FALSE;
+		if (avcodec_open2(m_c, m_codec, NULL) < 0)
+			return FALSE;
+		m_width = m_c->width;
+		m_height = m_c->height;
+		m_sps_pps_ok = TRUE;
+	}
+
 	m_pWnd = pCWnd;
 	::ResumeThread(m_hDecodeThread);
 	m_bWork = true;
+
+	return TRUE;
+
 }
+
+//void CRtpPlayer::Play(CWnd * pCWnd)
+//{
+//	if (NULL != pCWnd)
+//	{
+//		m_pWnd = pCWnd;
+//		::ResumeThread(m_hDecodeThread);
+//		m_bWork = true;
+//	}
+//
+//}
 
 DWORD CRtpPlayer::DecodeVideoThread(LPVOID lpParam)
 {

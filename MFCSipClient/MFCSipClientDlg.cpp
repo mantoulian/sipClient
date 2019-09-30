@@ -119,9 +119,9 @@ BOOL CMFCSipClientDlg::OnInitDialog()
 	m_edit_username.SetWindowTextW(_T("1001"));
 	m_edit_password.SetWindowTextW(_T("1001"));
 	m_edit_sev_port.SetWindowTextW(_T("5060"));
-	m_edit_sev_address.SetWindowTextW(_T("192.168.100.60"));
-	m_edit_rtsp_address.SetWindowTextW(_T("rtsp://192.168.100.80:554"));
-	m_edit_local_address.SetWindowTextW(_T("192.168.100.82"));
+	m_edit_sev_address.SetWindowTextW(_T("192.168.1.156"));
+	m_edit_rtsp_address.SetWindowTextW(_T("rtsp://admin:os1234@192.168.10.46:554"));
+	m_edit_local_address.SetWindowTextW(_T("192.168.1.82"));
 	m_edit_contact.SetWindowTextW(_T("1002"));
 
 	
@@ -180,18 +180,22 @@ HCURSOR CMFCSipClientDlg::OnQueryDragIcon()
 }
 
 
-
+//注册
 void CMFCSipClientDlg::OnBnClickedButtonPlay()
 {
-	CString str_username, str_password;
+	CString str_username, str_password, sev_addr, sev_port;
+	WORD nsev_port = 0;
 
 	//设置sdp
-	theApp.m_sip_client.set_local_sdp(theApp.m_rtsp_client.get_SDP());
-
-
+	//theApp.m_sip_client.set_local_sdp(theApp.m_rtsp_client.get_SDP());
 	m_edit_username.GetWindowTextW(str_username);
 	m_edit_password.GetWindowTextW(str_password);
-	if (FALSE == theApp.m_sip_client.register_account(str_username, str_password))
+	m_edit_sev_address.GetWindowTextW(sev_addr);
+	m_edit_sev_port.GetWindowTextW(sev_port);
+	nsev_port = _ttoi(sev_port);
+
+
+	if (FALSE == theApp.m_sip_client.register_account(str_username, nsev_port, str_username, str_password))
 	{
 		print_log(_T("sip注册失败"));
 		return;
@@ -211,15 +215,21 @@ void CMFCSipClientDlg::OnBnClickedButtonPlay()
 
 }
 
-
-//#define ANSWER_WAIT_TIME	60
+//呼叫
 void CMFCSipClientDlg::OnBnClickedButtonMakeCall()
 {
+	CSDP sdp;
 	CString str_contact, str_log, str_video_fmtp;
+
+	//设置本地sdp
+	sdp = theApp.m_rtsp_client.get_SDP();
+	if (!theApp.m_sip_client.set_local_sdp(sdp))
+		return;
+
 
 	//呼叫
 	m_edit_contact.GetWindowTextW(str_contact);
-	if (theApp.m_sip_client.make_call(str_contact, FALSE, 0, TRUE, 0))
+	if (theApp.m_sip_client.make_call(str_contact))
 	{
 		str_log.Format(_T("呼叫%s"), str_contact);
 		print_log(str_log);
@@ -233,23 +243,25 @@ void CMFCSipClientDlg::OnBnClickedButtonMakeCall()
 
 
 
-	//初始化播放器
-	if (FALSE == theApp.m_player_2.init(theApp.m_sip_client.get_local_sdp().get_video_fmtp()))
-	{
-		print_log(_T("播放器2初始化失败"));
-		return;
-	}
+	//播放
 	CWnd* pImageWnd = GetDlgItem(IDC_STATIC_SHOW);
 	if (pImageWnd == NULL)
 	{
 		return;
 	}
+
+	//设置cache
+	CRtpPacketCache *cache = theApp.m_sip_client.get_recv_cache();
+	if (NULL == cache)
+		return;
+	theApp.m_player_2.SetRtpCache(cache);
+
 	int answer_time = 60;
 	while (answer_time)
 	{
 		if (theApp.m_sip_client.get_client_status() == calling)
 		{
-			theApp.m_player_2.Play(pImageWnd);
+			theApp.m_player_2.Play(theApp.m_sip_client.get_sdp().m_strVideoFmtp, pImageWnd);
 			break;
 		}
 		Sleep(1000);
@@ -262,94 +274,100 @@ void CMFCSipClientDlg::OnBnClickedButtonMakeCall()
 }
 
 
-void incoming_call(CSipPacketInfo *packet)
+int incoming_call(CSipPacketInfo *pack_info)
 {
-	if (NULL == packet)
-		return;
+	if (NULL == pack_info)
+		return -1;
 
-	if (theApp.m_sip_client.call_answer(packet))
-	{
-
-		//初始化播放器
-		if (FALSE == theApp.m_player_2.init(theApp.m_sip_client.get_local_sdp().get_video_fmtp()))
-		{
-			//CMFCSipClientDlg::print_log(_T("播放器2初始化失败"));
-			return;
-		}
-		//CWnd* pImageWnd = CWnd::GetDlgItem(IDC_STATIC_SHOW);
-		CWnd* pImageWnd;
-		if (pImageWnd == NULL)
-		{
-			return;
-		}
-		int answer_time = 60;
-		while (answer_time)
-		{
-			if (theApp.m_sip_client.get_client_status() == calling)
-			{
-				theApp.m_player_2.Play(pImageWnd);
-				break;
-			}
-			Sleep(1000);
-			answer_time--;
-		}
-	}
+	//接听
+	if (!theApp.m_sip_client.call_answer(pack_info))
+		return -2;
 
 
+	//初始化播放器
+	//if (FALSE == theApp.m_player_2.init(theApp.m_sip_client.get_local_sdp().m_strVideoFmtp))
+	//{
+	//	CMFCSipClientDlg::print_log(_T("播放器2初始化失败"));
+	//	return -3;
+	//}
+	//CWnd* pImageWnd = GetDlgItem(IDC_STATIC_SHOW);
+	////CWnd* pImageWnd;
+	//if (pImageWnd == NULL)
+	//{
+	//	return;
+	//}
+	//int answer_time = 60;
+	//while (answer_time)
+	//{
+	//	if (theApp.m_sip_client.get_client_status() == calling)
+	//	{
+	//		theApp.m_player_2.Play(pImageWnd);
+	//		break;
+	//	}
+	//	Sleep(1000);
+	//	answer_time--;
+	//}
+	//
 
 
-	return;
+	return 0;
 }
 
+//初始化
 void CMFCSipClientDlg::OnBnClickedButtonInit()
 {
-	CString str_sev_address, str_sev_port, str_local_address;
-	CString str_log, str_rtsp_url;
-	unsigned short sev_port = 0;
-	int nLength = 0;
-
 	//rtsp clinet init
 	if (FALSE == theApp.m_rtsp_client.init())
 	{
 		print_log(_T("rtsp客户端初始化失败"));
+		return ;
+	}
+	if (FALSE == theApp.m_sip_client.init())
+	{
+		print_log(_T("sip客户端初始化失败"));
 		return;
 	}
+	if (!theApp.m_player_1.init())
+	{
+		print_log(_T("播放器1 初始化失败"));
+		return ;
+	}
+	if (!theApp.m_player_2.init())
+	{
+		print_log(_T("播放器2 初始化失败"));
+		return ;
+	}
+
+	print_log(_T("sip客户端初始化成功"));
+
+	return;
+
+
 	//m_edit_rtsp_address.GetWindowTextW(str_rtsp_url);
 	//if (NULL == theApp.m_rtsp_client.open_url(str_rtsp_url))
 	//{
 	//	print_log(_T("链接rtsp失败"));
 	//	return;
 	//}
-	
-	m_edit_sev_address.GetWindowTextW(str_sev_address);
-	m_edit_sev_port.GetWindowTextW(str_sev_port);
-	m_edit_local_address.GetWindowTextW(str_local_address);
-	sev_port = _ttoi(str_sev_port);
-	if (FALSE == theApp.m_sip_client.init(str_sev_address, sev_port, str_local_address))
-	{
-		print_log(_T("sip客户端初始化失败"));
-		return;
-	}
-
-
-
-
-	print_log(_T("sip客户端初始化成功"));
-
-
-	theApp.m_sip_client.set_coming_call_function(incoming_call);
+	//m_edit_sev_address.GetWindowTextW(str_sev_address);
+	//m_edit_sev_port.GetWindowTextW(str_sev_port);
+	//m_edit_local_address.GetWindowTextW(str_local_address);
+	//sev_port = _ttoi(str_sev_port);
+	//theApp.m_sip_client.set_coming_call_function(incoming_call);
 	//cache 设置
 	//本地显示cache
-	theApp.m_rtsp_client.AddCache(&theApp.local_play_cache);
-	theApp.m_player_1.SetRtpCache(&theApp.local_play_cache);
+	//theApp.m_rtsp_client.AddCache(&theApp.local_play_cache);
+	//theApp.m_player_1.SetRtpCache(&theApp.local_play_cache);
 	//发送cache
-	theApp.m_rtsp_client.AddCache(&theApp.send_cache);
-	theApp.m_sip_client.set_send_cache(&theApp.send_cache);
+	//theApp.m_rtsp_client.AddCache(&theApp.send_cache);
+	//theApp.m_sip_client.set_send_cache(&theApp.send_cache);
 	//接收cache
-	theApp.m_sip_client.set_recv_cache(&theApp.recv_cache);
-	theApp.m_player_2.SetRtpCache(&theApp.recv_cache);
+	//theApp.m_sip_client.set_recv_cache(&theApp.recv_cache);
+	//theApp.m_player_2.SetRtpCache(&theApp.recv_cache);
+	//CRtpPacketCache *cache = theApp.m_sip_client.get_recv_cache();
+	//if (cache != NULL)
+	//	theApp.m_player_2.SetRtpCache(cache);
 
-	return;
 }
 
 void CMFCSipClientDlg::print_log(CString str_log)
@@ -374,28 +392,46 @@ void CMFCSipClientDlg::print_log(CString str_log)
 
 }
 
-
+//1 使用rtsp连接摄像头 2 本地显示
 void CMFCSipClientDlg::OnBnClickedButtonConnectRtsp()
 {
 	CString str_rtsp_url, str_log;
 
+
+	//设置cache
+	theApp.m_rtsp_client.AddCache(&theApp.local_play_cache);
+	//theApp.m_rtsp_client.AddCache(&theApp.send_cache);
+
 	//链接摄像头
 	m_edit_rtsp_address.GetWindowTextW(str_rtsp_url);
-	if (NULL == theApp.m_rtsp_client.open_url(str_rtsp_url))
+	if (FALSE == theApp.m_rtsp_client.open_url(str_rtsp_url))
 	{
 		print_log(_T("链接rtsp失败"));
 		return;
 	}
 
 	//显示
-	if (FALSE == theApp.m_player_1.init(theApp.m_rtsp_client.get_SDP().get_video_fmtp()))
+	CSDP sdp;
+	CWnd* pImageWnd = GetDlgItem(IDC_STATIC_ShowLocal);
+	if (NULL == pImageWnd)
 	{
-		print_log(_T("播放器1初始化失败"));
+		theApp.m_rtsp_client.teardown();
+		return ;
+	}
+	sdp = theApp.m_rtsp_client.get_SDP();
+	if (sdp.m_strVideoFmtp.IsEmpty())
+	{
+		theApp.m_rtsp_client.teardown();
 		return;
 	}
-	CWnd* pImageWnd = GetDlgItem(IDC_STATIC_ShowLocal);
-	if (pImageWnd != NULL)
-		theApp.m_player_1.Play(pImageWnd);
+	theApp.m_player_1.SetRtpCache(&theApp.local_play_cache);
+	if (!theApp.m_player_1.Play(sdp.m_strVideoFmtp, pImageWnd))
+	{
+		theApp.m_rtsp_client.teardown();
+		return;
+	}
+
+
 
 	print_log(_T("rtsp链接成功"));
 	return;

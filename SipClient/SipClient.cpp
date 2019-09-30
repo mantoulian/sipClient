@@ -9,7 +9,6 @@
 #define	 ANSWER_TIMEOUT     60000//对方客户端接听时间
 #define  SIP_BUF_SIZE		4096
 #define  TEMP_BUF_SIZE		1024
-//#define  RTP_BUF_SIZE		4096
 
 
 
@@ -25,12 +24,8 @@ CSipClient::CSipClient()
 	m_recv_cache = NULL;
 	m_recv_h = NULL;
 	m_proc_h = NULL;
-	m_send_rtp_audio_h = NULL;
-	m_send_rtp_video_h = NULL;
-	m_recv_rtp_audio_h = NULL;
-	m_recv_rtp_video_h = NULL;
-	m_recv_rtp_video_h = NULL;
-	m_recv_rtp_audio_h = NULL;
+	m_send_rtp_h = NULL;
+	m_recv_rtp_h = NULL;
 	m_incoming_call = NULL;
 	m_sdp=NULL;
 	m_local_sdp = NULL;
@@ -49,7 +44,8 @@ CSipClient::~CSipClient()
 
 }
 
-BOOL CSipClient::init(WORD port)
+
+BOOL CSipClient::init(WORD port, WORD a_port, WORD v_port)
 {
 	BOOL ret = FALSE;
 
@@ -58,12 +54,45 @@ BOOL CSipClient::init(WORD port)
 		m_sock = new CNetSocket();
 		if (NULL == m_sock)
 			return ret;
-		if (m_sock->Create(port, SOCK_DGRAM))
+		if (!m_sock->Create(port, SOCK_DGRAM))
 			return ret;
 	}
-	if (m_sock->GetSockName(m_local_addr, m_local_port))
+	if (!m_sock->GetSockName(m_local_addr, m_local_port))
 		return ret;
 	m_local_addr = _T("192.168.1.82");
+	//audio
+	if (NULL == m_sock_a)
+	{
+		m_sock_a = new CNetSocket();
+		if (NULL == m_sock_a)
+			return ret;
+		if (!m_sock_a->Create(a_port, SOCK_DGRAM))
+			return ret;
+	}
+	//video
+	if (NULL == m_sock_v)
+	{
+		m_sock = new CNetSocket();
+		if (NULL == m_sock)
+			return ret;
+		if (!m_sock->Create(v_port, SOCK_DGRAM))
+			return ret;
+	}
+
+
+	//sdp
+	if (NULL == m_sdp)
+	{
+		m_sdp = new CSDP();
+		if (NULL == m_sdp)
+			return FALSE;
+	}
+	if (NULL == m_local_sdp)
+	{
+		m_local_sdp = new CSDP();
+		if (NULL == m_local_sdp)
+			return FALSE;
+	}
 
 
 	//cache初始化
@@ -83,18 +112,44 @@ BOOL CSipClient::init(WORD port)
 
 
 	//创建接收线程
-	m_recv_h = ::CreateThread(NULL, 0, ReceiveSipThread, this, CREATE_SUSPENDED, NULL);
-	ASSERT(NULL != m_recv_h);
 	if (NULL == m_recv_h)
-		return FALSE;
+	{
+		m_recv_h = ::CreateThread(NULL, 0, ReceiveSipThread, this, CREATE_SUSPENDED, NULL);
+		ASSERT(NULL != m_recv_h);
+		if (NULL == m_recv_h)
+			return FALSE;
+	}
 	//创建解析sip消息线程
-	m_proc_h = ::CreateThread(NULL, 0, SipPacketProcessThread, this, CREATE_SUSPENDED, NULL);
-	ASSERT(NULL != m_proc_h);
 	if (NULL == m_proc_h)
-		return FALSE;
+	{
+		m_proc_h = ::CreateThread(NULL, 0, SipPacketProcessThread, this, CREATE_SUSPENDED, NULL);
+		ASSERT(NULL != m_proc_h);
+		if (NULL == m_proc_h)
+			return FALSE;
+	}
+	//发送媒体
+	if (NULL == m_send_rtp_h)
+	{
+		m_send_rtp_h = ::CreateThread(NULL, 0, send_media_thread, this, CREATE_SUSPENDED, NULL);
+		ASSERT(NULL != m_send_rtp_h);
+		if (NULL == m_send_rtp_h)
+			return FALSE;
+	}
+	//接收媒体
+	if (NULL == m_recv_rtp_h)
+	{
+		m_recv_rtp_h = ::CreateThread(NULL, 0, recv_media_thread, this, CREATE_SUSPENDED, NULL);
+		ASSERT(NULL != m_recv_rtp_h);
+		if (NULL == m_recv_rtp_h)
+			return FALSE;
+	}
+
+	m_reg_cseq = 0;
+	m_inv_cseq = 0;
 
 	m_client_status = init_ok;
 	m_bwork = TRUE;
+	m_call_stu = INVITE_START;
 	::ResumeThread(m_recv_h);
 	::ResumeThread(m_proc_h);
 
@@ -243,6 +298,7 @@ BOOL CSipClient::make_call(const CString & strCallName)
 
 
 }
+
 
 //初始化
 //BOOL CSipClient::init(const CString &strServerAddress, unsigned short usServerPort,
@@ -809,20 +865,21 @@ BOOL CSipClient::make_call(const CString & strCallName)
 //	return TRUE;
 //}
 
-BOOL CSipClient::hangup(const CString &strCallName)
-{
+//BOOL CSipClient::hangup(const CString &strCallName)
+//{
+//
+//	//
+//	//1,发送bye到服务器
+//	//build_bye_request()
+//	//build_ack_request
+//	//2，拆除 发送和接收 rtp线程
+//	//3，移除 callinfo
+//
+//	//m_client_status = register_ok;
+//
+//	return 0;
+//}
 
-	//
-	//1,发送bye到服务器
-	//build_bye_request()
-	//build_ack_request
-	//2，拆除 发送和接收 rtp线程
-	//3，移除 callinfo
-
-	//m_client_status = register_ok;
-
-	return 0;
-}
 
 
 //sdp协商， 回复ok消息
@@ -935,90 +992,58 @@ BOOL CSipClient::call_answer(CSipPacketInfo *packet_info)
 	return TRUE;
 }
 
-BOOL CSipClient::start_rtp_transport()
-{
-	if (NULL == m_sdp && NULL == m_local_sdp)
-		return FALSE;
 
-	CString peer_addr;
-	WORD peer_port;
-
-	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
-	{
-		if (NULL == m_sock_a)
-		{
-			m_sock_a = new CNetSocket();
-			if (NULL == m_sock_a)
-				return FALSE;
-		}
-
-		if (!m_sock_a->Create(0, SOCK_DGRAM))
-			return FALSE;
-		if (!m_sock_a->GetSockName(peer_addr, peer_port))
-			return FALSE;
-		m_local_sdp->m_usAudioPort = peer_port;
-		m_local_sdp->m_strAudioIP = m_local_addr;
-
-		//启动发送接收线程
-		if (NULL == m_send_rtp_audio_h)
-		{
-			m_send_rtp_audio_h = ::CreateThread(NULL, 0, send_rtp_audio_thread, this, CREATE_SUSPENDED, NULL);
-			if (NULL == m_send_rtp_audio_h)
-				return FALSE;
-			::ResumeThread(m_send_rtp_audio_h);
-
-		}
-		if (NULL == m_recv_rtp_audio_h)
-		{
-			m_recv_rtp_audio_h = ::CreateThread(NULL, 0, recv_rtp_audio_thread, this, CREATE_SUSPENDED, NULL);
-			if (NULL == m_recv_rtp_audio_h)
-				return FALSE;
-			::ResumeThread(m_recv_rtp_audio_h);
-
-		}
-
-	}
-
-	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
-	{
-		if (NULL == m_sock_v)
-		{
-			m_sock_v = new CNetSocket();
-			if (NULL == m_sock_v)
-				return FALSE;
-		}
-		if (!m_sock_v->Create(0, SOCK_DGRAM))
-			return FALSE;
-		if (!m_sock_v->GetSockName(peer_addr, peer_port))
-			return FALSE;
-		m_local_sdp->m_usVideoPort = peer_port;
-		m_local_sdp->m_strVideoIP = m_local_addr;
-
-		//启动发送接收线程
-		if (NULL == m_send_rtp_video_h)
-		{
-			m_send_rtp_video_h = ::CreateThread(NULL, 0, send_rtp_video_thread, this, CREATE_SUSPENDED, NULL);
-			if (NULL == m_send_rtp_video_h)
-				return FALSE;
-			::ResumeThread(m_send_rtp_video_h);
-
-		}
-		if (NULL == m_recv_rtp_video_h)
-		{
-			m_recv_rtp_video_h = ::CreateThread(NULL, 0, recv_rtp_video_thread, this, CREATE_SUSPENDED, NULL);
-			if (NULL == m_recv_rtp_video_h)
-				return FALSE;
-			::ResumeThread(m_recv_rtp_video_h);
-
-		}
-
-	}
-
-
-	
-
-	return TRUE;
-}
+//开启媒体传输
+//1创建socket 2打开rtp线程
+//BOOL CSipClient::start_rtp_transport()
+//{
+//	if (NULL == m_sdp && NULL == m_local_sdp)
+//		return FALSE;
+//
+//	CString peer_addr;
+//	WORD peer_port;
+//
+//	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+//	{
+//		if (NULL == m_sock_a)
+//		{
+//			m_sock_a = new CNetSocket();
+//			if (NULL == m_sock_a)
+//				return FALSE;
+//		}
+//
+//		if (!m_sock_a->Create(0, SOCK_DGRAM))
+//			return FALSE;
+//		if (!m_sock_a->GetSockName(peer_addr, peer_port))
+//			return FALSE;
+//		m_local_sdp->m_usAudioPort = peer_port;
+//		m_local_sdp->m_strAudioIP = m_local_addr;
+//	}
+//
+//	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+//	{
+//		if (NULL == m_sock_v)
+//		{
+//			m_sock_v = new CNetSocket();
+//			if (NULL == m_sock_v)
+//				return FALSE;
+//		}
+//		if (!m_sock_v->Create(0, SOCK_DGRAM))
+//			return FALSE;
+//		if (!m_sock_v->GetSockName(peer_addr, peer_port))
+//			return FALSE;
+//		m_local_sdp->m_usVideoPort = peer_port;
+//		m_local_sdp->m_strVideoIP = m_local_addr;
+//	}
+//
+//	::ResumeThread(m_send_rtp_h);
+//	::ResumeThread(m_recv_rtp_h);
+//
+//
+//	
+//
+//	return TRUE;
+//}
 
 //BOOL CSipClient::start_rtp_transport()
 //{
@@ -1045,7 +1070,10 @@ CRtpPacketCache * CSipClient::get_recv_cache()
 
 void CSipClient::set_send_cache(CRtpPacketCache * cache)
 {
-	m_send_cache = cache;
+	if (NULL != cache)
+		m_send_cache = cache;
+
+	return;
 }
 
 //void CSipClient::set_recv_cache(CRtpPacketCache * cache)
@@ -1053,10 +1081,34 @@ void CSipClient::set_send_cache(CRtpPacketCache * cache)
 //	m_call_info->rtp_cache = cache;
 //}
 
-void CSipClient::set_local_sdp(const CSDP & sdp)
+BOOL CSipClient::set_local_sdp(const CSDP & sdp)
 {
+	if (NULL == m_local_sdp)
+		return FALSE;
+
+	CString addr;
+	WORD port;
+
+
 	*m_local_sdp = sdp;
-	return ;
+	if (m_sock_a)
+	{
+		if (!m_sock_a->GetSockName(addr, port))
+			return FALSE;
+		m_local_sdp->m_usAudioPort = port;
+	}
+	if (m_sock_v)
+	{
+		if (!m_sock_v->GetSockName(addr, port))
+			return FALSE;
+		m_local_sdp->m_usVideoPort = port;
+	}
+	m_local_sdp->m_strAudioIP = m_local_addr;
+	m_local_sdp->m_strVideoIP = m_local_addr;
+
+
+
+	return TRUE;
 
 
 	//if (NULL == m_local_sdp)
@@ -1073,11 +1125,11 @@ void CSipClient::set_local_sdp(const CSDP & sdp)
 	
 }
 
-void CSipClient::coming_call_back(CSipPacketInfo *packet)
-{
-	//保存
-	call_answer(packet);
-}
+//void CSipClient::coming_call_back(CSipPacketInfo *packet)
+//{
+//	//保存
+//	//call_answer(packet);
+//}
 
 
 CLIENT_STATUS CSipClient::get_client_status()
@@ -1085,9 +1137,9 @@ CLIENT_STATUS CSipClient::get_client_status()
 	return m_client_status;
 }
 
-CSDP CSipClient::get_local_sdp()
+CSDP CSipClient::get_sdp()
 {
-	return *m_local_sdp;
+	return *m_sdp;
 }
 
 
@@ -1200,14 +1252,15 @@ DWORD CSipClient::DoSipPacketProcess()
 
 }
 
-//发送ack ， 收发rtp
+//收到invite ok的回应
+//1保存对方sdp， 2发送ack， 3开启媒体传输
 BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
 {
 	if (pack_info == NULL)
 		return FALSE;
 
 
-	//sdp
+	//保存sdp
 	if (NULL == m_sdp)
 	{
 		m_sdp = new CSDP();
@@ -1215,7 +1268,6 @@ BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
 			return FALSE;
 		*m_sdp = pack_info->get_sdp_info();
 	}
-
 
 	//send ack
 	CSipPacket ack_pack;
@@ -1227,37 +1279,17 @@ BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
 	CString call_id;
 	int cseq;
 
+	cseq = pack_info->get_cseq().cseq;
+
 	if (!ack_pack.build_ACK_packet(req, via, max_forwards, from, to, call_id, cseq))
 		return FALSE;
 	if (!send_packet(&ack_pack))
 		return FALSE;
 
-	//开始传输rtp数据
-	//if (!start_rtp_transport())
-	//	return FALSE;
-	/*
-	if (NULL == m_call_info->send_handle)
-	{
-		m_call_info->send_handle = ::CreateThread(NULL, 0, send_rtp_thread, this, CREATE_SUSPENDED, NULL);
-		if (NULL == m_call_info->send_handle)
-		{
-			return FALSE;
-		}
-		::ResumeThread(m_call_info->send_handle);
+	//开始媒体传输
+	::ResumeThread(m_send_rtp_h);
+	::ResumeThread(m_recv_rtp_h);
 
-	}
-
-	if (NULL == m_call_info->recv_handle)
-	{
-		m_call_info->recv_handle = ::CreateThread(NULL, 0, recv_rtp_thread, this, CREATE_SUSPENDED, NULL);
-		if (NULL == m_call_info->recv_handle)
-		{
-			return FALSE;
-		}
-		::ResumeThread(m_call_info->recv_handle);
-
-	}
-	*/
 
 	return TRUE;
 }
@@ -1292,14 +1324,15 @@ DWORD CSipClient::do_send_media()
 		{
 			if (rtp_pack->enType == audio && m_sdp->m_bAudioMedia)
 			{
-				 m_sock_a->SendTo(rtp_pack->szData, rtp_pack->usPackLen,
-					m_sdp->m_usAudioPort, m_sdp->m_strAudioIP);
-
+				if (NULL != m_sock_a)
+					m_sock_a->SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+						m_sdp->m_usAudioPort, m_sdp->m_strAudioIP);
 			}
 			else if (rtp_pack->enType == video && m_sdp->m_bVideoMedia)
 			{
-				m_sock_v->SendTo(rtp_pack->szData, rtp_pack->usPackLen,
-					m_sdp->m_usVideoPort, m_sdp->m_strVideoIP);
+				if (NULL != m_sock_v)
+					m_sock_v->SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+						m_sdp->m_usVideoPort, m_sdp->m_strVideoIP);
 				//if (ret < 0)
 				//	int err = WSAGetLastError();
 			}
@@ -1310,9 +1343,7 @@ DWORD CSipClient::do_send_media()
 		}
 	}
 
-
-
-
+	return 0;
 }
 
 DWORD CSipClient::do_recv_media()
@@ -1328,9 +1359,8 @@ DWORD CSipClient::do_recv_media()
 
 	while (m_bwork)
 	{
-		if (m_local_sdp->m_bAudioMedia)
+		if (m_local_sdp->m_bAudioMedia && NULL != m_sock_a )
 		{
-
 			ret = m_sock_a->ReceiveFrom(buf, 4096, recv_addr, recv_port);
 			if (ret > 0 && recv_port == m_sdp->m_usAudioPort &&
 				recv_addr.Compare(m_sdp->m_strAudioIP) == 0)
@@ -1347,7 +1377,7 @@ DWORD CSipClient::do_recv_media()
 
 		}
 
-		if (m_local_sdp->m_bVideoMedia)
+		if (m_local_sdp->m_bVideoMedia && NULL != m_sock_v)
 		{
 			ret = m_sock_v->ReceiveFrom(buf, 4096, recv_addr, recv_port);
 			if (ret > 0 && recv_port == m_sdp->m_usVideoPort
@@ -1445,45 +1475,45 @@ DWORD CSipClient::do_recv_media()
 //}
 
 
-BOOL get_md5_hash(const BYTE * pbData, int nDataLen, CString &strMd5Hash)
-{
-	HCRYPTPROV hProv;
-	if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
-		return FALSE;
-
-	HCRYPTHASH hHash;
-	if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash))
-	{
-		CryptReleaseContext(hProv, 0);
-		return FALSE;
-	}
-
-	if (!CryptHashData(hHash, pbData, nDataLen, 0))
-	{
-		CryptDestroyHash(hHash);
-		CryptReleaseContext(hProv, 0);
-		return FALSE;
-	}
-
-	DWORD dwSize;
-	DWORD dwLen = sizeof(dwSize);
-	CryptGetHashParam(hHash, HP_HASHSIZE, (BYTE*)(&dwSize), &dwLen, 0);
-
-	BYTE* pHash = new BYTE[dwSize];
-	dwLen = dwSize;
-	CryptGetHashParam(hHash, HP_HASHVAL, pHash, &dwLen, 0);
-
-	strMd5Hash = _T("");
-	for (DWORD i = 0; i<dwLen; i++)
-		strMd5Hash.AppendFormat(_T("%02X"), pHash[i]);
-	delete[] pHash;
-
-
-	CryptDestroyHash(hHash);
-	CryptReleaseContext(hProv, 0);
-
-	return TRUE;
-}
+//BOOL build_md5(const BYTE * pbData, int nDataLen, CString &strMd5Hash)
+//{
+//	HCRYPTPROV hProv;
+//	if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+//		return FALSE;
+//
+//	HCRYPTHASH hHash;
+//	if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash))
+//	{
+//		CryptReleaseContext(hProv, 0);
+//		return FALSE;
+//	}
+//
+//	if (!CryptHashData(hHash, pbData, nDataLen, 0))
+//	{
+//		CryptDestroyHash(hHash);
+//		CryptReleaseContext(hProv, 0);
+//		return FALSE;
+//	}
+//
+//	DWORD dwSize;
+//	DWORD dwLen = sizeof(dwSize);
+//	CryptGetHashParam(hHash, HP_HASHSIZE, (BYTE*)(&dwSize), &dwLen, 0);
+//
+//	BYTE* pHash = new BYTE[dwSize];
+//	dwLen = dwSize;
+//	CryptGetHashParam(hHash, HP_HASHVAL, pHash, &dwLen, 0);
+//
+//	strMd5Hash = _T("");
+//	for (DWORD i = 0; i<dwLen; i++)
+//		strMd5Hash.AppendFormat(_T("%02X"), pHash[i]);
+//	delete[] pHash;
+//
+//
+//	CryptDestroyHash(hHash);
+//	CryptReleaseContext(hProv, 0);
+//
+//	return TRUE;
+//}
 
 
 BOOL get_nonce(CSipPacket *pPacket, CString &strNonce)
@@ -1518,6 +1548,7 @@ BOOL get_nonce(CSipPacket *pPacket, CString &strNonce)
 	return TRUE;
 }
 
+//注册认证方法： 1 HASH1=MD5(username:realm:password) 2 HASH2 = MD5(method:uri) 3 Response = MD5(HA1:nonce:HA2)
 BOOL register_authenticate(CSipPacket *pRecvPacket)
 {
 	CString strNonce;
@@ -1526,6 +1557,8 @@ BOOL register_authenticate(CSipPacket *pRecvPacket)
 
 	if (!get_nonce(pRecvPacket, strNonce))
 		return FALSE;
+
+
 
 	//Packet.build_register_request()
 
@@ -1572,7 +1605,6 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 				m_call_stu == INVITE_SDP_OK)
 			{
 				m_call_stu = INVITE_ACK_OK;
-				start_rtp_transport();
 			}
 		}
 	}

@@ -34,6 +34,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	void print_log(CString str_log);
+	//int incoming_call(CSipPacketInfo *pack_info);
 	afx_msg void OnBnClickedButtonPlay();
 	CEdit m_edit_status;
 	CEdit m_edit_sev_address;
