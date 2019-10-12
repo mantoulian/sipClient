@@ -70,7 +70,7 @@ public:
 	unsigned short m_usAudioPort;
 	CString m_strAudioIP;
 	int m_nAudioLoadType;
-	CString m_strAudioTrackId;
+	CString m_strAudioControl;
 	CString m_strAudioRtpMap;
 	CString m_strAudioFmtp;
 	//สำฦต
@@ -78,7 +78,7 @@ public:
 	unsigned short m_usVideoPort;
 	CString m_strVideoIP;
 	int m_nVideoLoadType;
-	CString  m_strVideoTrackId;
+	CString  m_strVideoControl;
 	CString  m_strVideoRtpMap;
 	CString  m_strVideoFmtp;
 };

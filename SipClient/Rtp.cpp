@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Rtp.h"
+#include "RtspClient.h"
 
 
 //FU indicator 
@@ -34,63 +35,99 @@ typedef struct fu_header
 	unsigned char S : 1;
 } FU_HEADER;   // 1 BYTES 
 
+//unsigned char * base64 = (unsigned char *)"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+//
+//CString CEncode::base64_encode(CString src, int srclen)
+//{
+//	int n, buflen, i, j;
+//	static unsigned char *dst;
+//	CString buf = src;
+//	buflen = n = srclen;
+//	dst = (unsigned char*)malloc(buflen / 3 * 4 + 3);
+//	memset(dst, 0, buflen / 3 * 4 + 3);
+//	for (i = 0, j = 0; i <= buflen - 3; i += 3, j += 4) {
+//		dst[j] = (buf[i] & 0xFC) >> 2;
+//		dst[j + 1] = ((buf[i] & 0x03) << 4) + ((buf[i + 1] & 0xF0) >> 4);
+//		dst[j + 2] = ((buf[i + 1] & 0x0F) << 2) + ((buf[i + 2] & 0xC0) >> 6);
+//		dst[j + 3] = buf[i + 2] & 0x3F;
+//	}
+//	if (n % 3 == 1) {
+//		dst[j] = (buf[i] & 0xFC) >> 2;
+//		dst[j + 1] = ((buf[i] & 0x03) << 4);
+//		dst[j + 2] = 64;
+//		dst[j + 3] = 64;
+//		j += 4;
+//	}
+//	else if (n % 3 == 2) {
+//		dst[j] = (buf[i] & 0xFC) >> 2;
+//		dst[j + 1] = ((buf[i] & 0x03) << 4) + ((buf[i + 1] & 0xF0) >> 4);
+//		dst[j + 2] = ((buf[i + 1] & 0x0F) << 2);
+//		dst[j + 3] = 64;
+//		j += 4;
+//	}
+//	for (i = 0; i<j; i++) /* map 6 bit value to base64 ASCII character */
+//		dst[i] = base64[(int)dst[i]];
+//	dst[j] = 0;
+//	return CString(dst);
+//}
+
 //解码base64
-BOOL base64_decode(char *szCode, int nCodeLen, char *szDeCode, int *nDecodeLen)
-{
-	if (szCode == NULL || szDeCode == NULL)
-	{
-		return false;
-	}
-
-
-
-	//根据base64表，以字符找到对应的十进制数据    
-	int table[] = { 0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,62,0,0,0,
-		63,52,53,54,55,56,57,58,
-		59,60,61,0,0,0,0,0,0,0,0,
-		1,2,3,4,5,6,7,8,9,10,11,12,
-		13,14,15,16,17,18,19,20,21,
-		22,23,24,25,0,0,0,0,0,0,26,
-		27,28,29,30,31,32,33,34,35,
-		36,37,38,39,40,41,42,43,44,
-		45,46,47,48,49,50,51
-	};
-	long len;
-	long str_len;
-	//unsigned char *res;
-	int i, j;
-
-	//计算解码后的字符串长度    
-	len = nCodeLen;
-	//判断编码后的字符串后是否有=    
-	if (strstr(szCode, "=="))
-		str_len = len / 4 * 3 - 2;
-	else if (strstr(szCode, "="))
-		str_len = len / 4 * 3 - 1;
-	else
-		str_len = len / 4 * 3;
-
-	*nDecodeLen = str_len;
-	//res = malloc(sizeof(unsigned char)*str_len + 1);
-	//res[str_len] = '\0';
-
-	//以4个字符为一位进行解码    
-	for (i = 0, j = 0; i < len - 2; j += 3, i += 4)
-	{
-		//取出第一个字符对应base64表的十进制数的前6位与第二个字符对应base64表的十进制数的后2位进行组合    
-		szDeCode[j] = ((unsigned char)table[szCode[i]]) << 2 | (((unsigned char)table[szCode[i + 1]]) >> 4);
-		//取出第二个字符对应base64表的十进制数的后4位与第三个字符对应bas464表的十进制数的后4位进行组合    
-		szDeCode[j + 1] = (((unsigned char)table[szCode[i + 1]]) << 4) | (((unsigned char)table[szCode[i + 2]]) >> 2);
-		//取出第三个字符对应base64表的十进制数的后2位与第4个字符进行组合    
-		szDeCode[j + 2] = (((unsigned char)table[szCode[i + 2]]) << 6) | ((unsigned char)table[szCode[i + 3]]);
-	}
-
-	return true;
-
-}
+//BOOL base64_decode(char *szCode, int nCodeLen, char *szDeCode, int *nDecodeLen)
+//{
+//	if (szCode == NULL || szDeCode == NULL)
+//	{
+//		return false;
+//	}
+//
+//
+//
+//	//根据base64表，以字符找到对应的十进制数据    
+//	int table[] = { 0,0,0,0,0,0,0,0,0,0,0,0,
+//		0,0,0,0,0,0,0,0,0,0,0,0,
+//		0,0,0,0,0,0,0,0,0,0,0,0,
+//		0,0,0,0,0,0,0,62,0,0,0,
+//		63,52,53,54,55,56,57,58,
+//		59,60,61,0,0,0,0,0,0,0,0,
+//		1,2,3,4,5,6,7,8,9,10,11,12,
+//		13,14,15,16,17,18,19,20,21,
+//		22,23,24,25,0,0,0,0,0,0,26,
+//		27,28,29,30,31,32,33,34,35,
+//		36,37,38,39,40,41,42,43,44,
+//		45,46,47,48,49,50,51
+//	};
+//	long len;
+//	long str_len;
+//	//unsigned char *res;
+//	int i, j;
+//
+//	//计算解码后的字符串长度    
+//	len = nCodeLen;
+//	//判断编码后的字符串后是否有=    
+//	if (strstr(szCode, "=="))
+//		str_len = len / 4 * 3 - 2;
+//	else if (strstr(szCode, "="))
+//		str_len = len / 4 * 3 - 1;
+//	else
+//		str_len = len / 4 * 3;
+//
+//	*nDecodeLen = str_len;
+//	//res = malloc(sizeof(unsigned char)*str_len + 1);
+//	//res[str_len] = '\0';
+//
+//	//以4个字符为一位进行解码    
+//	for (i = 0, j = 0; i < len - 2; j += 3, i += 4)
+//	{
+//		//取出第一个字符对应base64表的十进制数的前6位与第二个字符对应base64表的十进制数的后2位进行组合    
+//		szDeCode[j] = ((unsigned char)table[szCode[i]]) << 2 | (((unsigned char)table[szCode[i + 1]]) >> 4);
+//		//取出第二个字符对应base64表的十进制数的后4位与第三个字符对应bas464表的十进制数的后4位进行组合    
+//		szDeCode[j + 1] = (((unsigned char)table[szCode[i + 1]]) << 4) | (((unsigned char)table[szCode[i + 2]]) >> 2);
+//		//取出第三个字符对应base64表的十进制数的后2位与第4个字符进行组合    
+//		szDeCode[j + 2] = (((unsigned char)table[szCode[i + 2]]) << 6) | ((unsigned char)table[szCode[i + 3]]);
+//	}
+//
+//	return true;
+//
+//}
 
 //从fmtp中获取sps pps
 BOOL Get_sps_pps_From_Fmtp(unsigned char * fmtp, unsigned char *sps_pps, int &sps_pps_len)
@@ -133,7 +170,7 @@ BOOL Get_sps_pps_From_Fmtp(unsigned char * fmtp, unsigned char *sps_pps, int &sp
 
 	//解码base64
 	int num = 0;
-	if (base64_decode(szCodeSPS, nCodeSpsLen, szDecodeSPS, &nDecodeSpsLen))
+	if (CRtspClient::base64_decode(szCodeSPS, nCodeSpsLen, szDecodeSPS, &nDecodeSpsLen))
 	{
 		//添加起始码 0x00 00 00 01
 		szSpsPps[3] = 1;
@@ -141,7 +178,7 @@ BOOL Get_sps_pps_From_Fmtp(unsigned char * fmtp, unsigned char *sps_pps, int &sp
 		memcpy(szSpsPps + num, szDecodeSPS, nDecodeSpsLen);
 		num += nDecodeSpsLen;
 	}
-	if (base64_decode(szCodePPS, nCodePpsLen, szDecodePPS, &nDecodePpsLen))
+	if (CRtspClient::base64_decode(szCodePPS, nCodePpsLen, szDecodePPS, &nDecodePpsLen))
 	{
 		//添加起始码 0x00 00 00 01
 		szSpsPps[num + 3] = 1;
@@ -425,7 +462,7 @@ CRtpPlayer::~CRtpPlayer()
 #define SPS_PPS_SIZE    512
 BOOL CRtpPlayer::init()
 {
-	char sps_pps[SPS_PPS_SIZE] = { 0 }, *pFmtp;
+	char sps_pps[SPS_PPS_SIZE] = { 0 };
 	int sps_pps_len = 0, ret = 0;
 
 	//ffmpeg 初始化

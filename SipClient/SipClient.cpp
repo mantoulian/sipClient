@@ -45,40 +45,56 @@ CSipClient::~CSipClient()
 }
 
 
-BOOL CSipClient::init(WORD port, WORD a_port, WORD v_port)
+BOOL CSipClient::init(const CString &sev_addr, WORD sev_port,
+	WORD l_sip_port, WORD l_a_port, WORD l_v_port)
 {
 	BOOL ret = FALSE;
+	CString addr;
+	WORD port;
 
+
+	m_sev_addr = sev_addr;
+	m_sev_port = sev_port;
+
+	//创建sock
 	if (NULL == m_sock)
 	{
 		m_sock = new CNetSocket();
 		if (NULL == m_sock)
 			return ret;
-		if (!m_sock->Create(port, SOCK_DGRAM))
+		if (!m_sock->Create(l_sip_port, SOCK_DGRAM))
 			return ret;
 	}
-	if (!m_sock->GetSockName(m_local_addr, m_local_port))
+	if (!m_sock->GetSockName(addr, port))
 		return ret;
+	//m_local_addr = addr;
 	m_local_addr = _T("192.168.1.82");
+	m_l_sip_port = port;
+
 	//audio
 	if (NULL == m_sock_a)
 	{
 		m_sock_a = new CNetSocket();
 		if (NULL == m_sock_a)
 			return ret;
-		if (!m_sock_a->Create(a_port, SOCK_DGRAM))
+		if (!m_sock_a->Create(l_a_port, SOCK_DGRAM))
 			return ret;
 	}
+	if (!m_sock_a->GetSockName(addr, port))
+		return ret;
+	m_l_a_port = port;
 	//video
 	if (NULL == m_sock_v)
 	{
-		m_sock = new CNetSocket();
-		if (NULL == m_sock)
+		m_sock_v = new CNetSocket();
+		if (NULL == m_sock_v)
 			return ret;
-		if (!m_sock->Create(v_port, SOCK_DGRAM))
+		if (!m_sock_v->Create(l_v_port, SOCK_DGRAM))
 			return ret;
 	}
-
+	if (!m_sock_v->GetSockName(addr, port))
+		return ret;
+	m_l_v_port = port;
 
 	//sdp
 	if (NULL == m_sdp)
@@ -96,19 +112,18 @@ BOOL CSipClient::init(WORD port, WORD a_port, WORD v_port)
 
 
 	//cache初始化
-	if (NULL == m_send_cache)
-	{
-		m_send_cache = new CRtpPacketCache();
-		if (NULL == m_send_cache)
-			return ret;
-	}
-
-	if (NULL == m_recv_cache)
-	{
-		m_recv_cache = new CRtpPacketCache();
-		if (NULL == m_recv_cache)
-			return ret;
-	}
+	//if (NULL == m_send_cache)
+	//{
+	//	m_send_cache = new CRtpPacketCache();
+	//	if (NULL == m_send_cache)
+	//		return ret;
+	//}
+	//if (NULL == m_recv_cache)
+	//{
+	//	m_recv_cache = new CRtpPacketCache();
+	//	if (NULL == m_recv_cache)
+	//		return ret;
+	//}
 
 
 	//创建接收线程
@@ -146,6 +161,7 @@ BOOL CSipClient::init(WORD port, WORD a_port, WORD v_port)
 
 	m_reg_cseq = 0;
 	m_inv_cseq = 0;
+	m_auth_count = 0;
 
 	m_client_status = init_ok;
 	m_bwork = TRUE;
@@ -158,8 +174,7 @@ BOOL CSipClient::init(WORD port, WORD a_port, WORD v_port)
 	return ret;
 }
 
-BOOL CSipClient::register_account(const CString & sev_addr, WORD port,
-	const CString & username, const CString & password)
+BOOL CSipClient::register_account(const CString & username, const CString & password)
 {
 	if (m_client_status != init_ok || m_bwork == FALSE )
 		return FALSE;
@@ -176,11 +191,13 @@ BOOL CSipClient::register_account(const CString & sev_addr, WORD port,
 	CString call_id;
 
 
-	req_par.method = SipRegister;
-	req_par.request_uri.host = sev_addr;
 
-	via_par.sent_address = sev_addr;
-	via_par.sent_port = port;
+
+	req_par.method = SipRegister;
+	req_par.request_uri.host = m_sev_addr;
+
+	via_par.sent_address = m_local_addr;
+	via_par.sent_port = m_l_sip_port;
 	if (!pack.NewGUIDString(guid_str))
 		return FALSE;
 	via_par.branch = pack.build_via_branch(guid_str);
@@ -194,11 +211,11 @@ BOOL CSipClient::register_account(const CString & sev_addr, WORD port,
 
 	to_par.display_info = username;
 	to_par.to_user = username;
-	to_par.to_host = sev_addr;
+	to_par.to_host = m_sev_addr;
 
 	con_par.contact_uri.user = pack.new_contact_user();
 	con_par.contact_uri.host = m_local_addr;
-	con_par.contact_uri.port = m_local_port;
+	con_par.contact_uri.port = m_l_sip_port;
 	con_par.parameter = _T("");
 
 	if (!pack.NewGUIDString(call_id))
@@ -218,14 +235,12 @@ BOOL CSipClient::register_account(const CString & sev_addr, WORD port,
 
 
 	//保存信息
-	m_sev_addr = sev_addr;
-	m_sev_port = port;
 	m_user = username;
 	m_password = password;
 	m_contact_user = con_par.contact_uri.user;
 
 
-	return 0;
+	return TRUE;
 }
 
 BOOL CSipClient::make_call(const CString & strCallName)
@@ -251,7 +266,7 @@ BOOL CSipClient::make_call(const CString & strCallName)
 	req_par.request_uri.host = m_sev_addr;
 
 	via_par.sent_address = m_local_addr;
-	via_par.sent_port = m_local_port;
+	via_par.sent_port = m_l_sip_port;
 	if (!pack.NewGUIDString(guid_str))
 		return FALSE;
 	via_par.branch = pack.build_via_branch(guid_str);
@@ -269,7 +284,7 @@ BOOL CSipClient::make_call(const CString & strCallName)
 
 	con_par.contact_uri.user = m_contact_user;
 	con_par.contact_uri.host = m_local_addr;
-	con_par.contact_uri.port = m_local_port;
+	con_par.contact_uri.port = m_l_sip_port;
 	//con_par.parameter = _T("");
 
 	if (!pack.NewGUIDString(call_id))
@@ -1204,18 +1219,20 @@ DWORD CSipClient::DoReceiveSip()
 DWORD CSipClient::DoSipPacketProcess()
 {
 	CSipPacket *packet = NULL;
-	CSipPacketInfo *packet_info = NULL;
+	//CSipPacketInfo *packet_info = NULL;
 	DWORD proc_time = 0;
 
+
+	//循环处理消息
 	while (m_bwork)
 	{
-		m_rep_lock.Lock();
-		if (m_rep_arr.GetSize() > 0)
+		m_recv_lock.Lock();
+		if (m_recv_arr.GetSize() > 0)
 		{
-			packet = m_rep_arr[0];
-			m_rep_arr.RemoveAt(0);
+			packet = m_recv_arr[0];
+			m_recv_arr.RemoveAt(0);
 		}
-		m_rep_lock.Unlock();
+		m_recv_lock.Unlock();
 
 
 		if (packet != NULL)
@@ -1227,24 +1244,24 @@ DWORD CSipClient::DoSipPacketProcess()
 		else
 		{
 			//处理request info 队列
-			//m_request_info_ArrLock.Lock();
-			//if (m_arrRequest_PackInfo.GetSize() > 0)
-			//{
-			//	packet_info = m_arrRequest_PackInfo[0];
-			//	if (NULL != packet_info)
-			//	{
-			//		proc_time = ::GetTickCount();
-			//		if (proc_time - packet_info->get_time() > SERVER_TIMEOUT)
-			//		{
-			//			delete packet_info;
-			//			m_arrRequest_PackInfo.RemoveAt(0);
-			//		}
+			m_send_lock.Lock();
+			if (m_send_arr.GetSize() > 0)
+			{
+				packet = m_send_arr[0];
+				if (NULL != packet)
+				{
+					proc_time = ::GetTickCount();
+					if (proc_time - packet->get_send_time() > SERVER_TIMEOUT)
+					{
+						delete packet;
+						m_send_arr.RemoveAt(0);
+					}
 
-			//	}
-			//}
-			//m_request_info_ArrLock.Unlock();
-			//
-			//Sleep(10);
+				}
+			}
+			m_send_lock.Unlock();
+			
+			Sleep(10);
 		}
 	}
 
@@ -1516,7 +1533,7 @@ DWORD CSipClient::do_recv_media()
 //}
 
 
-BOOL get_nonce(CSipPacket *pPacket, CString &strNonce)
+BOOL get_nonce_realm(CSipPacket *pPacket, CString &strNonce, CString &realm)
 {
 	if (NULL == pPacket)
 		return FALSE;
@@ -1538,32 +1555,96 @@ BOOL get_nonce(CSipPacket *pPacket, CString &strNonce)
 
 	while (i<128)
 	{
-		if (pFlag[i] == '\"')
+		if (pFlag[i] == '\"' || pFlag[i] == '\r' || pFlag[i] == '\0')
 			break;
 		szBuf[i] = pFlag[i];
 		i++;
 	}
 	strNonce = szBuf;
 
+
+	pFlag = strstr((char *)pPacketData, "realm");
+	if (NULL == pFlag)
+		return FALSE;
+	pFlag += strlen("realm=\"");
+	i = 0;
+	while (i<128)
+	{
+		if (pFlag[i] == '\"' || pFlag[i] == '\r' || pFlag[i] == '\0')
+			break;
+		szBuf[i] = pFlag[i];
+		i++;
+	}
+	realm = szBuf;
+
 	return TRUE;
 }
 
 //注册认证方法： 1 HASH1=MD5(username:realm:password) 2 HASH2 = MD5(method:uri) 3 Response = MD5(HA1:nonce:HA2)
+BOOL builf_auth_response(CString & response, const CString &username, const CString &passwd,
+	const CString &realm, const CString &method, const CString &uri, const CString &nonce)
+{
+	char *p = NULL;
+	CString  str_temp, hash1, hash2, hash3;
+
+	str_temp.Format(_T("%s:%s:%s"), username, realm, passwd);
+	USES_CONVERSION;
+	p = T2A(str_temp);
+	if (NULL == p)
+		return FALSE;
+	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash1))
+		return FALSE;
+
+	str_temp.Format(_T("%s:%s"), method, uri);
+	p = T2A(str_temp);
+	if (NULL == p)
+		return FALSE;
+	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash2))
+		return FALSE;
+
+	str_temp.Format(_T("%s:%s:%s"), hash1, nonce, hash2);
+	p = T2A(str_temp);
+	if (NULL == p)
+		return FALSE;
+	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash3))
+		return FALSE;
+
+	response = hash3;
+
+	return TRUE;
+
+
+}
+
+
 BOOL register_authenticate(CSipPacket *pRecvPacket)
 {
-	CString strNonce;
+	char *p = NULL;
+	CString strNonce, realm, str_temp;
 	CSipPacket Packet;
 
 
-	if (!get_nonce(pRecvPacket, strNonce))
+	//计算response
+	if (!get_nonce_realm(pRecvPacket, strNonce, realm))
 		return FALSE;
 
+	str_temp.Format
+	USES_CONVERSION;
+	T2A()
+	CRtspClient::build_md5()
 
 
 	//Packet.build_register_request()
 
 
 	return FALSE;
+}
+
+CString build_auth(const CString &username, const CString &realm,
+	const CString &nonce, const CString &uri, const CString &response)
+{
+	CString auth;
+	return auth;
 }
 
 
@@ -1577,7 +1658,6 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 	CSipPacketInfo recv_packet_info, send_packet_info;
 	BOOL find_request = FALSE, remove_request = FALSE;
 	MESSAGE_TYPE type;
-	//CString recv_branch;
 
 
 	if (!recv_packet_info.from_packet(recv_pack))
@@ -1615,10 +1695,10 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 			return;
 		int i = 0;
 
-		m_req_lock.Lock();
-		for (i = 0; i < m_req_arr.GetSize(); i++)
+		m_send_lock.Lock();
+		for (i = 0; i < m_send_arr.GetSize(); i++)
 		{
-			send_pack = m_req_arr.GetAt(i);
+			send_pack = m_send_arr.GetAt(i);
 			if (NULL == send_pack)
 				continue;
 			if (!send_packet_info.from_packet(send_pack))
@@ -1628,10 +1708,12 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 				if (send_via_par.branch == via_par.branch)
 				{
 					find_request = TRUE;
+					m_send_arr.RemoveAt(i);
 					break;
 				}
 			}
 		}
+		m_send_lock.Unlock();
 
 		if (find_request)
 		{
@@ -1652,7 +1734,25 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 				}
 				else if (status_code == 401)
 				{
-					register_authenticate(recv_pack);
+					m_auth_count++;
+					if (m_auth_count <= 3)
+					{
+						CSipPacket pack;
+						CString realm, nonce, uri, response;
+						if (!get_nonce_realm(recv_pack, realm, nonce))
+							return;
+						uri.Format(_T("sip:%s"), m_sev_addr);
+						if (!builf_auth_response(response, m_user, m_password, realm,
+							_T("REGISTER"), uri, nonce))
+							return ;
+						if (!pack.build_REG_packet())
+							return;
+						if (!send_packet(&pack))
+							return;
+
+
+						
+					}
 				}
 			}
 			else if (method == SipInvite)
@@ -1682,11 +1782,10 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 					send_pack = NULL;
 				}
 
-				m_req_arr.RemoveAt(i);
+				//m_req_arr.RemoveAt(i);
 			}
 
 		}
-		m_req_lock.Unlock();
 	}
 
 	return;

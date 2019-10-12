@@ -148,11 +148,11 @@ BOOL CSDP::from_buffer(char * buffer, int buf_len)
 			m_strAudioFmtp = value;
 		}
 
-		//提取trackid
-		pTemp = strstr(media_buf, "control:track");
+		//提取control
+		pTemp = strstr(media_buf, "a=control");
 		if (pTemp != NULL)
 		{
-			pTemp += strlen("control:");
+			pTemp += strlen("a=control:");
 			i = 0;
 			memset(value, 0, SDP_MEDIA_SIZE);
 			while (i<SDP_MEDIA_SIZE)
@@ -162,7 +162,7 @@ BOOL CSDP::from_buffer(char * buffer, int buf_len)
 				value[i] = pTemp[i];
 				i++;
 			}
-			m_strAudioTrackId = value;
+			m_strAudioControl = value;
 		}
 
 
@@ -235,11 +235,11 @@ BOOL CSDP::from_buffer(char * buffer, int buf_len)
 			m_strVideoIP = value;
 		}
 
-		//提取trackid
-		pTemp = strstr(media_buf, "control:track");
+		//提取control
+		pTemp = strstr(media_buf, "a=control");
 		if (pTemp != NULL)
 		{
-			pTemp += strlen("control:");
+			pTemp += strlen("a=control:");
 			memset(value, 0, SDP_MEDIA_SIZE);
 			i = 0;
 			while (i<SDP_MEDIA_SIZE)
@@ -249,7 +249,7 @@ BOOL CSDP::from_buffer(char * buffer, int buf_len)
 				value[i] = pTemp[i];
 				i++;
 			}
-			m_strVideoTrackId = value;
+			m_strVideoControl = value;
 		}
 
 		//提取rtpmap

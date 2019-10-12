@@ -120,7 +120,7 @@ BOOL CMFCSipClientDlg::OnInitDialog()
 	m_edit_password.SetWindowTextW(_T("1001"));
 	m_edit_sev_port.SetWindowTextW(_T("5060"));
 	m_edit_sev_address.SetWindowTextW(_T("192.168.1.156"));
-	m_edit_rtsp_address.SetWindowTextW(_T("rtsp://admin:os1234@192.168.10.46:554"));
+	m_edit_rtsp_address.SetWindowTextW(_T("rtsp://admin:admin@192.168.66.12:554"));
 	m_edit_local_address.SetWindowTextW(_T("192.168.1.82"));
 	m_edit_contact.SetWindowTextW(_T("1002"));
 
@@ -195,7 +195,7 @@ void CMFCSipClientDlg::OnBnClickedButtonPlay()
 	nsev_port = _ttoi(sev_port);
 
 
-	if (FALSE == theApp.m_sip_client.register_account(str_username, nsev_port, str_username, str_password))
+	if (FALSE == theApp.m_sip_client.register_account(str_username, str_password))
 	{
 		print_log(_T("sip注册失败"));
 		return;
@@ -316,13 +316,21 @@ int incoming_call(CSipPacketInfo *pack_info)
 //初始化
 void CMFCSipClientDlg::OnBnClickedButtonInit()
 {
+	CString sev_addr, sev_port;
+	WORD n_s_port;
+
 	//rtsp clinet init
 	if (FALSE == theApp.m_rtsp_client.init())
 	{
 		print_log(_T("rtsp客户端初始化失败"));
-		return ;
+		return;
 	}
-	if (FALSE == theApp.m_sip_client.init())
+
+	m_edit_sev_address.GetWindowTextW(sev_addr);
+	m_edit_sev_port.GetWindowTextW(sev_port);
+	n_s_port = _ttoi(sev_port);
+
+	if (FALSE == theApp.m_sip_client.init(sev_addr, n_s_port))
 	{
 		print_log(_T("sip客户端初始化失败"));
 		return;
@@ -330,45 +338,19 @@ void CMFCSipClientDlg::OnBnClickedButtonInit()
 	if (!theApp.m_player_1.init())
 	{
 		print_log(_T("播放器1 初始化失败"));
-		return ;
+		return;
 	}
 	if (!theApp.m_player_2.init())
 	{
 		print_log(_T("播放器2 初始化失败"));
-		return ;
+		return;
 	}
 
 	print_log(_T("sip客户端初始化成功"));
 
 	return;
-
-
-	//m_edit_rtsp_address.GetWindowTextW(str_rtsp_url);
-	//if (NULL == theApp.m_rtsp_client.open_url(str_rtsp_url))
-	//{
-	//	print_log(_T("链接rtsp失败"));
-	//	return;
-	//}
-	//m_edit_sev_address.GetWindowTextW(str_sev_address);
-	//m_edit_sev_port.GetWindowTextW(str_sev_port);
-	//m_edit_local_address.GetWindowTextW(str_local_address);
-	//sev_port = _ttoi(str_sev_port);
-	//theApp.m_sip_client.set_coming_call_function(incoming_call);
-	//cache 设置
-	//本地显示cache
-	//theApp.m_rtsp_client.AddCache(&theApp.local_play_cache);
-	//theApp.m_player_1.SetRtpCache(&theApp.local_play_cache);
-	//发送cache
-	//theApp.m_rtsp_client.AddCache(&theApp.send_cache);
-	//theApp.m_sip_client.set_send_cache(&theApp.send_cache);
-	//接收cache
-	//theApp.m_sip_client.set_recv_cache(&theApp.recv_cache);
-	//theApp.m_player_2.SetRtpCache(&theApp.recv_cache);
-	//CRtpPacketCache *cache = theApp.m_sip_client.get_recv_cache();
-	//if (cache != NULL)
-	//	theApp.m_player_2.SetRtpCache(cache);
-
 }
+
 
 void CMFCSipClientDlg::print_log(CString str_log)
 {

@@ -50,9 +50,9 @@ public:
 	~CSipClient();
 
 
-	BOOL init(WORD port = 0, WORD a_port = 0, WORD v_port = 0);
-	BOOL register_account(const CString &sev_addr, WORD port,
-		const CString &username, const CString &password);
+	BOOL init(const CString &sev_addr, WORD sev_port,
+		WORD l_sip_port = 0, WORD l_a_port = 0, WORD l_v_port = 0);
+	BOOL register_account(const CString &username, const CString &password);
 	BOOL make_call(const CString &strCallName);
 
 	BOOL hangup(CSipPacketInfo *packet_info);
@@ -92,7 +92,7 @@ private:
 	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
 	DWORD DoReceiveSip();
 	DWORD DoSipPacketProcess();
-	void proc_sip_mess(CSipPacket *sipMess);//解析sip消息
+	void proc_sip_mess(CSipPacket *sipMess);//解析收到的sip消息
 	BOOL invite_ok_process(CSipPacketInfo *sipMess);//解析 invite ok
 
 	static DWORD WINAPI send_media_thread(LPVOID lpParam);
@@ -112,10 +112,10 @@ private:
 	//CString m_strContactUser;
 	//CString m_strUserName;
 
-	CMutex		m_rep_lock;
-	CTypedPtrArray<CPtrArray, CSipPacket*> m_rep_arr;//sip响应消息队列
-	CMutex		m_req_lock;
-	CTypedPtrArray<CPtrArray, CSipPacket*> m_req_arr;//sip请求消息队列
+	CMutex		m_recv_lock;
+	CTypedPtrArray<CPtrArray, CSipPacket*> m_recv_arr;
+	CMutex		m_send_lock;
+	CTypedPtrArray<CPtrArray, CSipPacket*> m_send_arr;
 
 	//user
 	CString m_user;
@@ -126,7 +126,10 @@ private:
 	CString m_sev_addr;
 	unsigned short m_sev_port;
 	CString m_local_addr;
-	unsigned short m_local_port;
+	WORD m_l_sip_port;
+	WORD m_l_a_port;
+	WORD m_l_v_port;
+
 	//socket
 	CNetSocket *m_sock;
 	CNetSocket *m_sock_a;
@@ -143,6 +146,7 @@ private:
 	//sip
 	int m_reg_cseq;
 	int m_inv_cseq;
+	int m_auth_count;
 	//clinet
 	CLIENT_STATUS m_client_status;
 	BOOL m_bwork;

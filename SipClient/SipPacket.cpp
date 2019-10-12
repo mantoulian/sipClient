@@ -86,6 +86,8 @@ BOOL CSipPacket::build_REG_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int 
 	if (!generate_cseq_line(line_data, cseq_par))
 		return FALSE;
 	packet += line_data;
+	packet += _T("\r\n");
+
 
 	USES_CONVERSION;
 	char *p = T2A(packet);

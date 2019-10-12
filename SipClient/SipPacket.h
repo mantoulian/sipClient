@@ -108,6 +108,7 @@ public:
 	BOOL from_buffer(char * buffer, int buffer_len);
 	unsigned char * get_data() { return m_data; }
 	int get_data_len() { return m_len; }
+	DWORD get_send_time() { return m_send_time; }
 	
 
 protected:
@@ -131,6 +132,7 @@ protected:
 private:
 	unsigned char *m_data;
 	int m_len;
+	DWORD m_send_time;
 
 };
 
@@ -193,6 +195,6 @@ private:
 	CSEQ_PARAMETER m_cseq;
 	CSDP m_sdp_info;
 
-	DWORD m_create_time;
+	//DWORD m_create_time;
 	
 };
