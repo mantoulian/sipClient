@@ -5,10 +5,11 @@
 #define new DEBUG_NEW
 #endif
 
-#define  SERVER_TIMEOUT     2000//sip消息等待时间
+#define  SERVER_TIMEOUT     30000//sip消息等待时间
 #define	 ANSWER_TIMEOUT     60000//对方客户端接听时间
 #define  SIP_BUF_SIZE		4096
 #define  TEMP_BUF_SIZE		1024
+#define  AUTH_NUMBER	3
 
 
 
@@ -178,29 +179,32 @@ BOOL CSipClient::register_account(const CString & username, const CString & pass
 {
 	if (m_client_status != init_ok || m_bwork == FALSE )
 		return FALSE;
+	m_remove_binding = FALSE;
 	
 	CString guid_str;
 	CSipPacket pack;
 
-	REQUEST_PARAMETER req_par;
+	REQUEST_METHOD method;
+	REQUEST_URI req_uri;
+
+	//REQUEST_PARAMETER req_par;
 	VIA_PARAMETER via_par;
 	int max_forwards = 70;
 	FROM_PARAMETER from_par;
 	TO_PARAMETER to_par;
 	CONTACT_PARAMETER con_par;
 	CString call_id;
+	CSEQ_PARAMETER cseq_par;
+	CONTACT_PARAMETER contact_par;
+	CONTENT_PAR content_par;
+	DIGEST_AUTH_PAR auth_par;
 
 
-
-
-	req_par.method = SipRegister;
-	req_par.request_uri.host = m_sev_addr;
 
 	via_par.sent_address = m_local_addr;
 	via_par.sent_port = m_l_sip_port;
-	if (!pack.NewGUIDString(guid_str))
+	if (!pack.build_via_branch(via_par.branch))
 		return FALSE;
-	via_par.branch = pack.build_via_branch(guid_str);
 	
 	if (!pack.NewGUIDString(guid_str))
 		return FALSE;
@@ -223,11 +227,17 @@ BOOL CSipClient::register_account(const CString & username, const CString & pass
 
 	m_reg_cseq++;
 
+	method = SipRegister;
+	req_uri.host = m_sev_addr;
+	if (!pack.build_request_line(method, req_uri))
+		return FALSE;
 
+	if (!pack.build_mess_head(via_par, max_forwards, from_par, to_par, call_id, cseq_par,
+		contact_par, content_par, auth_par))
+		return FALSE;
 
-
-	pack.build_REG_packet(req_par, via_par, max_forwards, from_par, to_par, con_par,
-		call_id, m_reg_cseq);
+	//pack.build_REG_packet(req_par, via_par, max_forwards, from_par, to_par, con_par,
+	//	call_id, m_reg_cseq, );
 
 	if (!send_packet(&pack))
 		return FALSE;
@@ -252,24 +262,29 @@ BOOL CSipClient::make_call(const CString & strCallName)
 	CString guid_str;
 	CSipPacket pack;
 
-	REQUEST_PARAMETER req_par;
+	REQUEST_METHOD method;
+	REQUEST_URI req_uri;
+
 	VIA_PARAMETER via_par;
 	int max_forwards = 70;
 	FROM_PARAMETER from_par;
 	TO_PARAMETER to_par;
 	CONTACT_PARAMETER con_par;
 	CString call_id;
+	CSEQ_PARAMETER cseq_par;
+	CONTACT_PARAMETER contact_par;
+	CONTENT_PAR content_par;
+	DIGEST_AUTH_PAR auth_par;
 
 
-	req_par.method = SipInvite;
-	req_par.request_uri.user = strCallName;
-	req_par.request_uri.host = m_sev_addr;
+	method = SipInvite;
+	req_uri.user = strCallName;
+	req_uri.host = m_sev_addr;
 
 	via_par.sent_address = m_local_addr;
 	via_par.sent_port = m_l_sip_port;
-	if (!pack.NewGUIDString(guid_str))
+	if (!pack.build_via_branch(via_par.branch))
 		return FALSE;
-	via_par.branch = pack.build_via_branch(guid_str);
 
 	if (!pack.NewGUIDString(guid_str))
 		return FALSE;
@@ -295,8 +310,19 @@ BOOL CSipClient::make_call(const CString & strCallName)
 
 
 	CString sdp = m_local_sdp->to_string();
-	pack.build_INV_packet(req_par, via_par, max_forwards, from_par, to_par, con_par,
-		call_id, m_reg_cseq, sdp);
+
+	if (!pack.build_request_line(method, req_uri))
+		return FALSE;
+	if (!pack.build_mess_head(via_par, max_forwards, from_par, to_par, call_id, cseq_par,
+		contact_par, content_par, auth_par))
+		return FALSE;
+	if (!pack.build_mess_body(m_local_sdp))
+		return FALSE;
+
+
+
+	//pack.build_INV_packet(req_par, via_par, max_forwards, from_par, to_par, con_par,
+	//	call_id, m_reg_cseq, sdp);
 
 	if (!send_packet(&pack))
 		return FALSE;
@@ -309,7 +335,7 @@ BOOL CSipClient::make_call(const CString & strCallName)
 
 
 
-	return 0;
+	return TRUE;
 
 
 }
@@ -919,7 +945,7 @@ BOOL CSipClient::call_answer(CSipPacketInfo *packet_info)
 		if (NULL == m_sdp)
 			return FALSE;
 	}
-	*m_sdp = packet_info->get_sdp_info();
+	*m_sdp = packet_info->m_sdp_info;
 
 
 
@@ -997,11 +1023,11 @@ BOOL CSipClient::call_answer(CSipPacketInfo *packet_info)
 
 
 	//回复ok消息
-	REQUEST_PARAMETER req_par;
-	if (!invite_ok_packet.build_OK_packet(req_par))
-		return FALSE;
-	if (!send_packet(&invite_ok_packet))
-		return FALSE;
+	//REQUEST_PARAMETER req_par;
+	//if (!invite_ok_packet.build_OK_packet(req_par))
+	//	return FALSE;
+	//if (!send_packet(&invite_ok_packet))
+	//	return FALSE;
 
 
 	return TRUE;
@@ -1199,9 +1225,9 @@ DWORD CSipClient::DoReceiveSip()
 				{
 					if (pack->from_buffer(pBuffer, ret))
 					{
-						m_rep_lock.Lock();
-						m_rep_arr.Add(pack);
-						m_rep_lock.Unlock();
+						m_recv_lock.Lock();
+						m_recv_arr.Add(pack);
+						m_recv_lock.Unlock();
 					}
 
 				}
@@ -1219,7 +1245,6 @@ DWORD CSipClient::DoReceiveSip()
 DWORD CSipClient::DoSipPacketProcess()
 {
 	CSipPacket *packet = NULL;
-	//CSipPacketInfo *packet_info = NULL;
 	DWORD proc_time = 0;
 
 
@@ -1283,25 +1308,25 @@ BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
 		m_sdp = new CSDP();
 		if (NULL == m_sdp)
 			return FALSE;
-		*m_sdp = pack_info->get_sdp_info();
+		*m_sdp = pack_info->m_sdp_info;
 	}
 
 	//send ack
-	CSipPacket ack_pack;
-	REQUEST_PARAMETER req;
-	VIA_PARAMETER via;
-	int max_forwards;
-	FROM_PARAMETER from;
-	TO_PARAMETER to;
-	CString call_id;
-	int cseq;
+	//CSipPacket ack_pack;
+	//REQUEST_PARAMETER req;
+	//VIA_PARAMETER via;
+	//int max_forwards;
+	//FROM_PARAMETER from;
+	//TO_PARAMETER to;
+	//CString call_id;
+	//int cseq;
 
-	cseq = pack_info->get_cseq().cseq;
+	//cseq = pack_info->get_cseq().cseq;
 
-	if (!ack_pack.build_ACK_packet(req, via, max_forwards, from, to, call_id, cseq))
-		return FALSE;
-	if (!send_packet(&ack_pack))
-		return FALSE;
+	//if (!ack_pack.build_ACK_packet(req, via, max_forwards, from, to, call_id, cseq))
+	//	return FALSE;
+	//if (!send_packet(&ack_pack))
+	//	return FALSE;
 
 	//开始媒体传输
 	::ResumeThread(m_send_rtp_h);
@@ -1532,7 +1557,7 @@ DWORD CSipClient::do_recv_media()
 //	return TRUE;
 //}
 
-
+//获取 nonce realm
 BOOL get_nonce_realm(CSipPacket *pPacket, CString &strNonce, CString &realm)
 {
 	if (NULL == pPacket)
@@ -1580,6 +1605,7 @@ BOOL get_nonce_realm(CSipPacket *pPacket, CString &strNonce, CString &realm)
 	return TRUE;
 }
 
+//计算摘要认证的response的值
 //注册认证方法： 1 HASH1=MD5(username:realm:password) 2 HASH2 = MD5(method:uri) 3 Response = MD5(HA1:nonce:HA2)
 BOOL builf_auth_response(CString & response, const CString &username, const CString &passwd,
 	const CString &realm, const CString &method, const CString &uri, const CString &nonce)
@@ -1616,17 +1642,19 @@ BOOL builf_auth_response(CString & response, const CString &username, const CStr
 
 }
 
-
-BOOL register_authenticate(CSipPacket *pRecvPacket)
+//在包中添加认证，并发送
+BOOL add_authenticate(CSipPacket *Packet)
 {
 	char *p = NULL;
-	CString strNonce, realm, str_temp;
+	CString strNonce, realm, str_temp, response;
 	CSipPacket Packet;
 
 
 	//计算response
-	if (!get_nonce_realm(pRecvPacket, strNonce, realm))
+	if (!get_nonce_realm(Packet, strNonce, realm))
 		return FALSE;
+
+	builf_auth_response(response, m_use)
 
 	str_temp.Format
 	USES_CONVERSION;
@@ -1647,8 +1675,97 @@ CString build_auth(const CString &username, const CString &realm,
 	return auth;
 }
 
+//查找发送消息队列中 via_branch 相同的包。返回下标
+int CSipClient::find_send_pack_index(CSipPacket *pack)
+{
+	CSipPacketInfo send_pack_info, pack_info;
+	int index = -1;
 
-//#define FROM_NAME_SIZE 128
+	if (NULL == pack)
+		return index;
+
+	if (!pack_info.from_packet(pack))
+		return index;
+	if (NULL == pack_info.m_array_via[0])
+		return index;
+
+	m_send_lock.Lock();
+	for (int i = 0; i < m_send_arr.GetSize(); i++)
+	{
+		if (!send_pack_info.from_packet(m_send_arr.GetAt(i)))
+			continue;
+
+		if (send_pack_info.m_array_via[0])
+		{
+			if (pack_info.m_array_via[0]->branch == send_pack_info.m_array_via[0]->branch)
+			{
+				index = i;
+				break;
+			}
+		}
+	}
+	m_send_lock.Unlock();
+
+	return index;
+
+}
+
+//**************************************************
+//*功能：创建remove packet
+//*参数：需要修改的包
+//*返回：成功返回新包指针，失败返回NULL
+//**************************************************
+CSipPacket* remove_binding(CSipPacket *packet)
+{
+	if (NULL == packet)
+		return NULL;
+
+	CString via_branch;
+	int cseq = 0;
+	BOOL ret = FALSE;
+	CSipPacket *new_packet = packet->clone_packet();
+	if (NULL == new_packet)
+		return NULL;
+
+	//修改 via branch, from tag, cseq++, 添加 expires=0
+	if (!CSipPacket::build_via_branch(via_branch))
+		goto end;
+	if (!new_packet->set_via_branch(via_branch))
+		goto end;
+
+	if (!CSipPacket::NewGUIDString(via_branch))
+		goto end;
+	if (!new_packet->set_from_tag(via_branch))
+		goto end;
+
+	cseq++;
+	if (!new_packet->set_cseq(cseq))
+		goto end;
+
+	via_branch.Format(_T("Expires: 0\r\n"));
+	if (!new_packet->add_entry(via_branch))
+		goto end;
+	ret = TRUE;
+
+end:
+	if (!ret)
+	{
+		if (NULL != new_packet)
+		{
+			delete new_packet;
+			new_packet = NULL;
+		}
+	}
+
+
+	return new_packet;
+}
+
+//**************************************************
+//*功能：处理sip消息主要线程
+//*参数：
+//*返回：
+//**************************************************
 void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 {
 	if (recv_pack == NULL)
@@ -1657,17 +1774,129 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 	CSipPacket *send_pack = NULL;
 	CSipPacketInfo recv_packet_info, send_packet_info;
 	BOOL find_request = FALSE, remove_request = FALSE;
-	MESSAGE_TYPE type;
 
 
 	if (!recv_packet_info.from_packet(recv_pack))
 		return;
 
-	type = recv_packet_info.get_type();
-	if (type == sip_request)
+	//响应消息，需要找到对应的请求消息
+	if (recv_packet_info.m_type == sip_status)//sip响应消息
 	{
-		REQUEST_PARAMETER request = recv_packet_info.get_request_para();
-		if (SipInvite == request.method)//收到来电
+		int find_index = 0;
+
+		m_send_lock.Lock();
+		find_index = find_send_pack_index(recv_pack);
+		if (find_index >= 0)//找到下标
+		{
+			if (!send_packet_info.from_packet(m_send_arr[find_index]))
+				return;
+			//根据请求消息，做相应处理
+			if (send_packet_info.m_method == SipRegister)//注册请求
+			{
+				if (recv_packet_info.m_status_code == 200)
+				{
+					//新的注册，需要remove binding 一次
+					if (m_remove_binding == FALSE)
+					{
+						send_pack = remove_binding(m_send_arr[find_index]);
+						if (NULL != send_pack)
+						{
+							if (!send_packet(send_pack))
+								return;
+							m_remove_binding = TRUE;
+						}
+
+					}
+					else
+					{
+						//已经remove binding过，保存contact中的user
+						if (NULL != send_packet_info.m_array_contact[0])
+						{
+							if (!send_packet_info.m_array_contact[0]->contact_uri.user.IsEmpty())
+							{
+								m_contact = send_packet_info.m_array_contact[0]->contact_uri.user;
+							}
+						}
+						m_client_status = register_ok;
+						remove_request = TRUE;
+					}
+
+					}
+				}
+				else if (recv_packet_info.m_status_code == 401)
+				{
+					//需要认证
+					if (m_auth_count < AUTH_NUMBER)
+					{
+
+
+						CString realm, nonce, uri, response;
+						if (!get_nonce_realm(recv_pack, realm, nonce))
+							return;
+						uri.Format(_T("sip:%s"), m_sev_addr);
+						if (!builf_auth_response(response, m_user, m_password, realm,
+							_T("REGISTER"), uri, nonce))
+							return;
+						//构建带认证的包
+						CSipPacket *pack = NULL;
+						CString via_branch, auth;
+						pack = m_send_arr[find_index]->clone_packet();
+						if (NULL == pack)
+							return;
+						if (!CSipPacket::build_via_branch(via_branch))
+							return;
+						if (!pack->set_via_branch(via_branch))
+							return;
+						auth.Format(_T("Authorization: Digest username=\"%s\",realm=\"%s\", nonce=\"%s\", uri=\"%s\", response=\"%s\"\r\n"),
+							m_user, realm, nonce, uri, response);
+						if (!pack->add_entry(auth))
+							return;
+
+						if (!send_packet(pack))
+							return;
+
+						m_auth_count++;
+					}
+				}
+			}
+			else if (send_packet_info.m_method == SipInvite)//邀请请求
+			{
+				if (recv_packet_info.m_status_code == 200)
+				{
+					if (m_client_status == inviteing && recv_packet_info.m_call_id == m_call_id)
+					{
+						if (invite_ok_process(&recv_packet_info))
+						{
+							m_client_status = calling;
+							remove_request = TRUE;
+						}
+						else
+							m_client_status = register_ok;
+
+					}
+				}
+			}
+		}
+		if (remove_request)
+		{
+			if (send_pack != NULL)
+			{
+				delete send_pack;
+				send_pack = NULL;
+			}
+			m_send_arr.RemoveAt(find_index);
+		}
+
+		m_send_lock.Unlock();
+	}
+
+
+
+
+
+	if (recv_packet_info.m_type == sip_request)
+	{
+		if (SipInvite == recv_packet_info.m_method)//收到来电
 		{
 			//保存sdp 发送ok
 			if (register_ok == m_client_status)
@@ -1678,114 +1907,110 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 					m_incoming_call(&recv_packet_info);
 			}
 		}
-		else if (SipAck == request.method)
+		else if (SipAck == recv_packet_info.m_method)
 		{
 			//发送rtp
-			if (m_call_id == recv_packet_info.get_call_id() &&
+			if (m_call_id == recv_packet_info.m_call_id &&
 				m_call_stu == INVITE_SDP_OK)
 			{
 				m_call_stu = INVITE_ACK_OK;
 			}
 		}
 	}
-	else if(type == sip_status)//sip响应消息
+	else if(recv_packet_info.m_type == sip_status)//sip响应消息
 	{
-		VIA_PARAMETER via_par, send_via_par;
-		if (!recv_packet_info.get_via(via_par, 0))
-			return;
-		int i = 0;
-
-		m_send_lock.Lock();
-		for (i = 0; i < m_send_arr.GetSize(); i++)
-		{
-			send_pack = m_send_arr.GetAt(i);
-			if (NULL == send_pack)
-				continue;
-			if (!send_packet_info.from_packet(send_pack))
-				continue;
-			if (send_packet_info.get_via(send_via_par, 0))
-			{
-				if (send_via_par.branch == via_par.branch)
-				{
-					find_request = TRUE;
-					m_send_arr.RemoveAt(i);
-					break;
-				}
-			}
-		}
-		m_send_lock.Unlock();
-
-		if (find_request)
-		{
-			STATUS_CODE status_code = recv_packet_info.get_status_code();
-			REQUEST_METHOD method = send_packet_info.get_request_para().method;
-			if (method  == SipRegister)
-			{
-				if (status_code == 200)
-				{
-					if (m_client_status == init_ok)
-					{
-						CONTACT_PARAMETER contact_par;
-						if (send_packet_info.get_contact(contact_par, 0))
-							m_contact_user = contact_par.contact_uri.user;
-						m_client_status = register_ok;
-						remove_request = TRUE;
-					}
-				}
-				else if (status_code == 401)
-				{
-					m_auth_count++;
-					if (m_auth_count <= 3)
-					{
-						CSipPacket pack;
-						CString realm, nonce, uri, response;
-						if (!get_nonce_realm(recv_pack, realm, nonce))
-							return;
-						uri.Format(_T("sip:%s"), m_sev_addr);
-						if (!builf_auth_response(response, m_user, m_password, realm,
-							_T("REGISTER"), uri, nonce))
-							return ;
-						if (!pack.build_REG_packet())
-							return;
-						if (!send_packet(&pack))
-							return;
 
 
-						
-					}
-				}
-			}
-			else if (method == SipInvite)
-			{
-				if (status_code == 200)
-				{
-					if (m_client_status == inviteing &&
-						recv_packet_info.get_call_id() == m_call_id)
-					{
-						if (invite_ok_process(&recv_packet_info))
-						{
-							m_client_status = calling;
-							remove_request = TRUE;
-						}
-						else
-							m_client_status = register_ok;
-						
-					}
-				}
-			}
 
-			if (remove_request)
-			{
-				if (send_pack != NULL)
-				{
-					delete send_pack;
-					send_pack = NULL;
-				}
+		//VIA_PARAMETER via_par, send_via_par;
+		//if (!recv_packet_info.get_via(via_par, 0))
+		//	return;
+		//int i = 0;
+		//for (i = 0; i < m_send_arr.GetSize(); i++)
+		//{
+		//	send_pack = m_send_arr.GetAt(i);
+		//	if (NULL == send_pack)
+		//		continue;
+		//	if (!send_packet_info.from_packet(send_pack))
+		//		continue;
+		//	if (send_packet_info.get_via(send_via_par, 0))
+		//	{
+		//		if (send_via_par.branch == via_par.branch)
+		//		{
+		//			find_request = TRUE;
+		//			break;
+		//		}
+		//	}
+		//}
+		//if (find_request)
+		//{
+		//	STATUS_CODE status_code = recv_packet_info.get_status_code();
+		//	REQUEST_METHOD method = send_packet_info.get_request_para().method;
+		//	if (method  == SipRegister)
+		//	{
+		//		if (status_code == 200)
+		//		{
+		//			if (m_client_status == init_ok)
+		//			{
+		//				CONTACT_PARAMETER contact_par;
+		//				if (send_packet_info.get_contact(contact_par, 0))
+		//					m_contact_user = contact_par.contact_uri.user;
+		//				m_client_status = register_ok;
+		//				remove_request = TRUE;
+		//			}
+		//		}
+		//		else if (status_code == 401)
+		//		{
+		//			m_auth_count++;
+		//			if (m_auth_count <= 3)
+		//			{
+		//				CSipPacket pack;
+		//				CString realm, nonce, uri, response;
+		//				if (!get_nonce_realm(recv_pack, realm, nonce))
+		//					return;
+		//				uri.Format(_T("sip:%s"), m_sev_addr);
+		//				if (!builf_auth_response(response, m_user, m_password, realm,
+		//					_T("REGISTER"), uri, nonce))
+		//					return ;
+		//				if (!pack.build_REG_packet())
+		//					return;
+		//				if (!send_packet(&pack))
+		//					return;
+		//				
+		//			}
+		//		}
+		//	}
+		//	else if (method == SipInvite)
+		//	{
+		//		if (status_code == 200)
+		//		{
+		//			if (m_client_status == inviteing &&
+		//				recv_packet_info.get_call_id() == m_call_id)
+		//			{
+		//				if (invite_ok_process(&recv_packet_info))
+		//				{
+		//					m_client_status = calling;
+		//					remove_request = TRUE;
+		//				}
+		//				else
+		//					m_client_status = register_ok;
+		//				
+		//			}
+		//		}
+		//	}
+		//	if (remove_request)
+		//	{
+		//		if (send_pack != NULL)
+		//		{
+		//			delete send_pack;
+		//			send_pack = NULL;
+		//		}
+		//	}
+		//}
+		//m_send_arr.RemoveAt(i);
+		//m_send_lock.Unlock();
 
-				//m_req_arr.RemoveAt(i);
-			}
 
-		}
 	}
 
 	return;

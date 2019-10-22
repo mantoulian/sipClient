@@ -29,12 +29,95 @@ CSipPacket::CSipPacket()
 }
 
 
+
 CSipPacket::~CSipPacket()
 {
 	if (NULL != m_data)
 		delete m_data;
 
 	m_len = 0;
+}
+
+CSipPacket * CSipPacket::clone_packet()
+{
+	CSipPacket *p = new CSipPacket();
+	if (p != NULL)
+	{
+		memcpy(p->m_data, m_data, m_len);
+		p->m_len = m_len;
+	}
+
+	return p;
+}
+
+//BOOL CSipPacket::clone_packet(const CSipPacket & packet)
+//{
+//	if (NULL == packet.get_data())
+//		return FALSE;
+//
+//
+//
+//	memset(m_data, 0, PACK_SIZE);
+//
+//
+//
+//
+//	return 0;
+//}
+
+BOOL CSipPacket::build_request_line(REQUEST_METHOD method, REQUEST_URI uri)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_status_line(STATUS_CODE code)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_mess_head(VIA_PARAMETER via_par, int max_forwards, FROM_PARAMETER from_par, TO_PARAMETER to_par, const CString call_id, CSEQ_PARAMETER cseq_par, CONTACT_PARAMETER contact_par, CONTENT_PAR content, DIGEST_AUTH_PAR auth_par)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_mess_head(VIA_PARAMETER via_par, int max_forwards, FROM_PARAMETER from_par, TO_PARAMETER to_par, CONTACT_PARAMETER contact_par, const CString call_id, CSEQ_PARAMETER cseq_par, DIGEST_AUTH_PAR auth_par)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_mess_head(VIA_PAR_LIST * via_par, int max_forwards, FROM_PARAMETER from_par, TO_PARAMETER to_par, CONTACT_PARAMETER contact_par, const CString call_id, CSEQ_PARAMETER cseq_par, DIGEST_AUTH_PAR auth_par)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_mess_body(const CString & body)
+{
+	return 0;
+}
+
+BOOL CSipPacket::set_via_branch(const CString &branch)
+{
+	return 0;
+}
+
+BOOL CSipPacket::set_from_tag(const CString & tag)
+{
+	return 0;
+}
+
+BOOL CSipPacket::set_cseq(int cseq)
+{
+	return 0;
+}
+
+BOOL CSipPacket::add_entry(const CString &value)
+{
+	return 0;
+}
+
+BOOL CSipPacket::add_via(VIA_PARAMETER via)
+{
+	return 0;
 }
 
 //BOOL CSipPacket::init()
@@ -51,7 +134,8 @@ CSipPacket::~CSipPacket()
 //}
 
 BOOL CSipPacket::build_REG_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards,
-	FROM_PARAMETER from, TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id, int cseq)
+	FROM_PARAMETER from, TO_PARAMETER to, CONTACT_PARAMETER contact, const CString call_id,
+	int cseq, DIGEST_AUTH_PAR auth)
 {
 	BOOL ret = FALSE;
 	int i = 0;
@@ -86,6 +170,10 @@ BOOL CSipPacket::build_REG_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int 
 	if (!generate_cseq_line(line_data, cseq_par))
 		return FALSE;
 	packet += line_data;
+
+	line_data = generate_digest_auth_line(auth);
+	packet += line_data;
+
 	packet += _T("\r\n");
 
 
@@ -174,15 +262,17 @@ BOOL CSipPacket::build_OK_packet(REQUEST_PARAMETER req)
 //	return 0;
 //}
 
-CString CSipPacket::build_via_branch(const CString & str)
+BOOL CSipPacket::build_via_branch(CString & via_branch)
 {
 	CString branch;
 
-	branch = _T("z9hG4bK");
-	branch += str;
+	if (!NewGUIDString(branch))
+		return FALSE;
 
+	branch.Insert(0, _T("z9hG4bK"));
+	via_branch = branch;
 
-	return branch;
+	return TRUE;
 }
 
 BOOL CSipPacket::from_buffer(char * buffer, int buffer_len)
@@ -939,6 +1029,20 @@ CString CSipPacket::generate_content_type_length_line(int content_length)
 	return str_content_type_length;
 }
 
+CString CSipPacket::generate_digest_auth_line(DIGEST_AUTH_PAR digest_auth_par)
+{
+	CString auth;
+
+
+	if (digest_auth_par.enable)
+	{
+		auth.Format(_T("Authorization: Digest username=\"%s\",realm=\"%s\",nonce=\"%s\",uri=\"%s\",response=\"%s\",algorithm=MD5"),
+			digest_auth_par.name, digest_auth_par.realm, digest_auth_par.nonce, digest_auth_par.uri, digest_auth_par.response);
+	}
+
+	return auth;
+}
+
 
 
 
@@ -1007,7 +1111,6 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 	if (NULL == packet)
 		return FALSE;
 	
-	//unsigned char data[PACK_SIZE] = { 0 };
 	unsigned char *data = NULL;
 	char *p = NULL;
 	int i = 0, j = 0, flag = 0, data_len = 0;
@@ -1261,15 +1364,15 @@ CSDP CSipPacketInfo::get_sdp_info()
 	return m_sdp_info;
 }
 
-DWORD CSipPacketInfo::get_time()
-{
-	return m_create_time;
-}
-
-void CSipPacketInfo::set_time(DWORD time)
-{
-	m_create_time = time;
-}
+//DWORD CSipPacketInfo::get_time()
+//{
+//	return m_create_time;
+//}
+//
+//void CSipPacketInfo::set_time(DWORD time)
+//{
+//	m_create_time = time;
+//}
 
 BOOL CSipPacketInfo::viastr_to_viapar(VIA_PARAMETER & via, const CString & string)
 {

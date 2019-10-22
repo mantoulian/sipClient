@@ -69,21 +69,6 @@ public:
 	CSDP get_sdp();
 
 
-	//BOOL init(const CString &strServerAddress, unsigned short usServerPort,
-	//	const CString &strLocalAddress, unsigned short usLocalSipPort=0);
-	//BOOL register_account(const CString &strUserName, const CString &strPassword);
-	//BOOL make_call( const CString &strCallName, BOOL audio_media = TRUE, WORD audio_port = 0,
-	//	BOOL video_media = TRUE, WORD video_port = 0);
-	//BOOL hangup(const CString &strCallName);
-	//BOOL call_answer(CSipPacketInfo *packet_info);
-
-	//开启rtp传输
-	//BOOL start_rtp_transport();
-
-
-
-	//void coming_call_back(CSipPacketInfo *packet_info);
-
 protected:
 
 	BOOL send_packet(CSipPacket *packet);
@@ -100,18 +85,12 @@ private:
 	DWORD do_send_media();
 	DWORD do_recv_media();
 
+	int find_send_pack_index(CSipPacket *pack);
+	//BOOL remove_binding(CSipPacket *pack);
+	//BOOL add_authenticate();
 
 
 private:
-	//CMutex		m_respond_ArrLock;
-	//CTypedPtrArray<CPtrArray, CSipPacket*> m_arrRespondPack;//sip响应消息队列
-	//CMutex		m_request_info_ArrLock;
-	//CTypedPtrArray<CPtrArray, CSipPacketInfo*> m_arrRequest_PackInfo;//sip请求消息队列
-	//DWORD m_last_send_time;
-	//CALL_INFO *m_call_info;
-	//CString m_strContactUser;
-	//CString m_strUserName;
-
 	CMutex		m_recv_lock;
 	CTypedPtrArray<CPtrArray, CSipPacket*> m_recv_arr;
 	CMutex		m_send_lock;
@@ -146,7 +125,8 @@ private:
 	//sip
 	int m_reg_cseq;
 	int m_inv_cseq;
-	int m_auth_count;
+	int m_auth_count; //认证次数
+	BOOL m_remove_binding; //取消绑定
 	//clinet
 	CLIENT_STATUS m_client_status;
 	BOOL m_bwork;
@@ -156,23 +136,7 @@ private:
 	CString m_call_id;
 	CSDP *m_sdp;
 	CSDP *m_local_sdp;
-	//BOOL m_audio;
-	//BOOL m_video;
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 /*
