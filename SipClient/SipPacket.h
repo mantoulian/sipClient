@@ -92,7 +92,6 @@ typedef struct contact_uri
 
 typedef struct contact_parameter
 {
-	BOOL enable;
 	CONTACT_URI contact_uri;
 	CString parameter;
 }CONTACT_PARAMETER;
@@ -119,7 +118,6 @@ typedef struct content_par
 
 typedef struct digest_auth_par
 {
-	BOOL enable;
 	CString name;
 	CString realm;
 	CString nonce;
@@ -139,21 +137,37 @@ public:
 	~CSipPacket();
 
 	CSipPacket * clone_packet();
+	BOOL from_buffer(char * buffer, int buffer_len);
+	void empty();
+
 
 	BOOL build_request_line(REQUEST_METHOD method, REQUEST_URI uri);
 	BOOL build_status_line(STATUS_CODE code);
 	BOOL build_mess_head(VIA_PARAMETER via_par, int max_forwards, FROM_PARAMETER from_par,
-		TO_PARAMETER to_par, const CString call_id, CSEQ_PARAMETER cseq_par, CONTACT_PARAMETER contact_par,
-		CONTENT_PAR content, DIGEST_AUTH_PAR auth_par);
-	BOOL build_mess_body(const CString & body);
+		TO_PARAMETER to_par, const CString &call_id, CSEQ_PARAMETER cseq_par, CONTACT_PARAMETER *contact_par,
+		CONTENT_PAR *content, DIGEST_AUTH_PAR *auth_par);
+	void build_mess_body(const CString & body);
 
 
 	BOOL set_via_branch(const CString &branch);
 	BOOL set_from_tag(const CString &tag);
-	BOOL set_cseq(int cseq);
+	BOOL set_to_tag(const CString &tag);
+	BOOL set_contact(int index, CONTACT_PARAMETER contact_par);
+	BOOL set_cseq(CSEQ_PARAMETER cseq);
+	void set_send_time(DWORD time) { m_send_time = time; }
+
+	BOOL get_nonce_realm(CString &realm, CString &nonce);
+	CString get_data() { return m_data; }
+	DWORD get_send_time() { return m_send_time; }
+
 
 	BOOL add_via(VIA_PARAMETER via);
-	BOOL add_entry(const CString &value);
+	BOOL mess_head_add_entry(const CString &string_line);
+
+
+	static BOOL NewGUIDString(CString &strGUID);
+	static BOOL build_via_branch(CString &via_branch);
+	//static CString new_contact_user();
 
 
 	//BOOL build_REG_packet(REQUEST_PARAMETER req, VIA_PARAMETER via, int max_forwards, FROM_PARAMETER from,
@@ -164,38 +178,30 @@ public:
 	//	TO_PARAMETER to, const CString call_id, int cseq);
 	//BOOL build_OK_packet(REQUEST_PARAMETER req);
 
-	static BOOL NewGUIDString(CString &strGUID);
-	static BOOL build_via_branch(CString &via_branch);
-	static CString new_contact_user();
 
-	BOOL from_buffer(char * buffer, int buffer_len);
-	unsigned char * get_data() { return m_data; }
-	int get_data_len() { return m_len; }
-	void set_send_time(DWORD time) { m_send_time = time; }
-	DWORD get_send_time() { return m_send_time; }
 	
 
-protected:
+public :
 
-	 BOOL generate_status_line(CString &strStatusLine, STATUS_CODE status_parameter);
-	 CString generate_via_line(VIA_PARAMETER via_parameter);
-	 CString generate_from_line(FROM_PARAMETER from_parameter);
-	 CString generate_to_line(TO_PARAMETER to_parameter);
-	 CString generate_contact_line(CONTACT_PARAMETER contact_parameter);
-	 CString generate_max_forwards_line(int max_forwards);
-	 CString generate_callid_line(const CString &call_id);
-	 BOOL generate_cseq_line(CString &strCSeqLine, CSEQ_PARAMETER cseq_parameter);
-	 CString generate_route_line(CString route);
-	 CString generate_record_route_line(CString route);
-	 CString generate_content_type_line(const CString &content_type);
-	 CString generate_content_type_length_line(int content_length);
-	 CString generate_digest_auth_line(DIGEST_AUTH_PAR digest_auth_par);
+	static BOOL generate_status_line(CString &strStatusLine, STATUS_CODE status_parameter);
+	static BOOL generate_request_line(CString &strRequestLine, REQUEST_METHOD method, REQUEST_URI uri);
+	static CString generate_via_line(VIA_PARAMETER via_parameter);
+	static CString generate_from_line(FROM_PARAMETER from_parameter);
+	static CString generate_to_line(TO_PARAMETER to_parameter);
+	static CString generate_contact_line(CONTACT_PARAMETER contact_parameter);
+	static CString generate_max_forwards_line(int max_forwards);
+	static CString generate_callid_line(const CString &call_id);
+	static BOOL generate_cseq_line(CString &strCSeqLine, CSEQ_PARAMETER cseq_parameter);
+	static CString generate_route_line(CString route);
+	static CString generate_record_route_line(CString route);
+	static CString generate_content_type_line(const CString &content_type);
+	static CString generate_content_type_length_line(int content_length);
+	static CString generate_digest_auth_line(DIGEST_AUTH_PAR digest_auth_par);
 
 	
 
 private:
-	unsigned char *m_data;
-	int m_len;
+	CString m_data;
 	DWORD m_send_time;
 
 };
@@ -232,34 +238,39 @@ public:
 
 
 public:
-	static BOOL viastr_to_viapar(VIA_PARAMETER &via, const CString &string);
-	static BOOL request_status_to_parameter(MESSAGE_TYPE & type, STATUS_CODE &status_code,
-	 	REQUEST_PARAMETER &request, const CString &string);
-	static BOOL fromstr_to_frompar(FROM_PARAMETER & from_par, const CString &string);
-	static BOOL tostr_to_topar(TO_PARAMETER &to_par, const CString &string);
-	static BOOL contactstr_to_contactpar(CONTACT_PARAMETER &contact_par, const CString &string);
-	static BOOL callidstr_to_callid(CString &call_id, const CString &callid_string);
-	static BOOL cseqstr_to_cseqpar(CSEQ_PARAMETER &cseq_par, const CString &string);
-	static BOOL content_type_string_to_type(CString &content_type, const CString &string);
-	static BOOL content_type_length_string_to_length(int &length, const CString &string);
+	static BOOL str_to_mess_type(MESSAGE_TYPE &type, const CString string);
+	static BOOL str_to_request_par(REQUEST_METHOD &method, REQUEST_URI &uri, const CString string);
+	static BOOL str_to_status_code(STATUS_CODE &code, const CString &string);
+	static BOOL str_to_viapar(VIA_PARAMETER &via, const CString &string);
+	static BOOL str_to_frompar(FROM_PARAMETER & from_par, const CString &string);
+	static BOOL str_to_topar(TO_PARAMETER &to_par, const CString &string);
+	static BOOL str_to_contactpar(CONTACT_PARAMETER &contact_par, const CString &string);
+	static BOOL str_to_callid(CString &call_id, const CString &callid_string);
+	static BOOL str_to_cseqpar(CSEQ_PARAMETER &cseq_par, const CString &string);
+	static BOOL str_to_content_type(CString &content_type, const CString &string);
+	static BOOL str_to_content_type_length(int &length, const CString &string);
 
 public:
 
+	//必选
 	MESSAGE_TYPE m_type;
 	STATUS_CODE m_status_code;
 	REQUEST_METHOD m_method;
+	REQUEST_URI m_request_uri;
 
 	CArray<VIA_PARAMETER*, VIA_PARAMETER*> m_array_via;
-	CArray<CONTACT_PARAMETER*, CONTACT_PARAMETER*> m_array_contact;
-
 	int m_max_forwards;
 	FROM_PARAMETER m_from;
 	TO_PARAMETER m_to;
 	CString m_call_id;
+	CSEQ_PARAMETER m_cseq;
+
+	//可选
+	CArray<CONTACT_PARAMETER*, CONTACT_PARAMETER*> m_array_contact;
 	CString m_content_type;
 	int m_content_length;
 	CString m_route;
-	CSEQ_PARAMETER m_cseq;
-	CSDP m_sdp_info;
+	DIGEST_AUTH_PAR m_authorization;
+	CSDP *m_sdp_info;
 	
 };

@@ -188,14 +188,13 @@ void CMFCSipClientDlg::OnBnClickedButtonPlay()
 
 	//设置sdp
 	//theApp.m_sip_client.set_local_sdp(theApp.m_rtsp_client.get_SDP());
-	m_edit_username.GetWindowTextW(str_username);
-	m_edit_password.GetWindowTextW(str_password);
+
 	m_edit_sev_address.GetWindowTextW(sev_addr);
 	m_edit_sev_port.GetWindowTextW(sev_port);
 	nsev_port = _ttoi(sev_port);
 
 
-	if (FALSE == theApp.m_sip_client.register_account(str_username, str_password))
+	if (FALSE == theApp.m_sip_client.register_account())
 	{
 		print_log(_T("sip注册失败"));
 		return;
@@ -316,7 +315,7 @@ int incoming_call(CSipPacketInfo *pack_info)
 //初始化
 void CMFCSipClientDlg::OnBnClickedButtonInit()
 {
-	CString sev_addr, sev_port;
+	CString sev_addr, sev_port, str_username, str_passwd;
 	WORD n_s_port;
 
 	//rtsp clinet init
@@ -325,12 +324,13 @@ void CMFCSipClientDlg::OnBnClickedButtonInit()
 		print_log(_T("rtsp客户端初始化失败"));
 		return;
 	}
-
+	m_edit_username.GetWindowTextW(str_username);
+	m_edit_password.GetWindowTextW(str_passwd);
 	m_edit_sev_address.GetWindowTextW(sev_addr);
 	m_edit_sev_port.GetWindowTextW(sev_port);
 	n_s_port = _ttoi(sev_port);
 
-	if (FALSE == theApp.m_sip_client.init(sev_addr, n_s_port))
+	if (FALSE == theApp.m_sip_client.init(str_username, str_passwd, sev_addr, n_s_port))
 	{
 		print_log(_T("sip客户端初始化失败"));
 		return;

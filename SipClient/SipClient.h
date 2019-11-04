@@ -2,7 +2,7 @@
 #include "RtspClient.h"
 #include "SipPacket.h"
 
-//****测试git分支**********
+
 
 typedef enum call_status
 {
@@ -19,7 +19,8 @@ typedef enum client_status
 {
 	uninitialized,
 	init_ok,
-	register_ok,
+	//register_ok,
+	wait,
 	inviteing,
 	calling,
 }CLIENT_STATUS;
@@ -50,9 +51,9 @@ public:
 	~CSipClient();
 
 
-	BOOL init(const CString &sev_addr, WORD sev_port,
+	BOOL init(const CString &username, const CString &passwd, const CString &sev_addr, WORD sev_port,
 		WORD l_sip_port = 0, WORD l_a_port = 0, WORD l_v_port = 0);
-	BOOL register_account(const CString &username, const CString &password);
+	BOOL register_account();
 	BOOL make_call(const CString &strCallName);
 
 	BOOL hangup(CSipPacketInfo *packet_info);
@@ -72,6 +73,7 @@ public:
 protected:
 
 	BOOL send_packet(CSipPacket *packet);
+	CSipPacket* recv_packet();
 private:
 	static DWORD WINAPI ReceiveSipThread(LPVOID lpParam);
 	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
@@ -86,6 +88,7 @@ private:
 	DWORD do_recv_media();
 
 	int find_send_pack_index(CSipPacket *pack);
+	BOOL packet_add_auth(CSipPacket *packet, const CString &realm, const CString &nonce, CSEQ_PARAMETER cseq);
 	//BOOL remove_binding(CSipPacket *pack);
 	//BOOL add_authenticate();
 
@@ -99,8 +102,7 @@ private:
 	//user
 	CString m_user;
 	CString m_password;
-	CString m_contact_user;
-	CString m_contact;
+	CString m_call_name;
 	//server
 	CString m_sev_addr;
 	unsigned short m_sev_port;
@@ -110,9 +112,10 @@ private:
 	WORD m_l_v_port;
 
 	//socket
-	CNetSocket *m_sock;
-	CNetSocket *m_sock_a;
-	CNetSocket *m_sock_v;
+	CMutex		m_sock_lock;
+	CNetSocket m_sock;
+	CNetSocket m_sock_a;
+	CNetSocket m_sock_v;
 	//cache
 	CRtpPacketCache *m_send_cache;
 	CRtpPacketCache *m_recv_cache;
@@ -125,6 +128,7 @@ private:
 	//sip
 	int m_reg_cseq;
 	int m_inv_cseq;
+	int m_ack_cseq;
 	int m_auth_count; //认证次数
 	BOOL m_remove_binding; //取消绑定
 	//clinet
