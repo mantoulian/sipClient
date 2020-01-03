@@ -39,8 +39,8 @@ public:
 	CSipClient m_sip_client;
 	CRtpPlayer m_player_1;
 	CRtpPlayer m_player_2;
-	CRtpPacketCache local_play_cache;
-	CRtpPacketCache send_cache;
+	CRtpPacketCache m_local_play_cache;
+	CRtpPacketCache m_send_cache;
 	//CRtpPacketCache recv_cache;
 
 };

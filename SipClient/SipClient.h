@@ -15,32 +15,35 @@ typedef enum call_status
 	INVITE_DISCONNECTED	//通话结束
 }CALL_STATUS;
 
+typedef struct call_info
+{
+	CALL_STATUS sta;
+	CString id;
+	SIP_URI contact_uri;
+	ROUTE_PARAMETER route;
+	CString invite_auth;
+	CSDP *sdp;
+	CSDP *l_sdp;
+	CNetSocket udp_a;
+	CNetSocket udp_v;
+	HANDLE send_handle;
+	HANDLE recv_audio_handle;
+	HANDLE recv_video_handle;
+	CRtpPacketCache *rtp_cache;
+	CSipPacketInfo *send_request_info;
+}CALL_INFO;
+
+
 typedef enum client_status
 {
 	uninitialized,
 	init_ok,
-	register_ok,
+	wait,
 	inviteing,
 	calling,
 }CLIENT_STATUS;
 
 typedef int(*incoming_call_back)( CSipPacketInfo *packet_info);
-
-
-//typedef struct call_info
-//{
-//	CALL_STATUS sta;
-//	CString id;
-//	CString name;
-//	CSDP *sdp;
-//	CSDP *local_sdp;
-//	CNetSocket udp_a;
-//	CNetSocket udp_v;
-//	HANDLE send_handle;
-//	HANDLE recv_handle;
-//	CRtpPacketCache *rtp_cache;
-//}CALL_INFO;
-
 
 
 class AFX_EXT_CLASS CSipClient
@@ -50,12 +53,14 @@ public:
 	~CSipClient();
 
 
-	BOOL init(const CString &sev_addr, WORD sev_port,
-		WORD l_sip_port = 0, WORD l_a_port = 0, WORD l_v_port = 0);
-	BOOL register_account(const CString &username, const CString &password);
-	BOOL make_call(const CString &strCallName);
+	BOOL init(const CString &username, const CString &passwd, const CString &sev_addr,
+		WORD sev_port, WORD l_sip_port = 0);
+	BOOL register_account();
+	BOOL make_call(const CString &strCallName, WORD l_a_port = 0, WORD l_v_port = 0);
 
-	BOOL hangup(CSipPacketInfo *packet_info);
+	//BOOL hangup(CSipPacketInfo *packet_info);
+	BOOL hangup();
+
 	BOOL call_answer(CSipPacketInfo *packet_info);
 
 	
@@ -65,42 +70,49 @@ public:
 	void set_coming_call_function(incoming_call_back function);
 	CLIENT_STATUS get_client_status();
 
-	BOOL set_local_sdp(const CSDP &sdp);
+	BOOL set_sdp(const CSDP &sdp);
 	CSDP get_sdp();
 
 
 protected:
-
+	BOOL build_register_message(CSipPacket &packet, const CString &auth, const CString &optional);
+	BOOL build_invite_message(CSipPacket &packet, const CString &call_name, const CSDP &sdp, const CString &auth, const CString &optiona);
+	BOOL build_BYE_packet(CSipPacket &packet, CSipPacketInfo *status_info);
 	BOOL send_packet(CSipPacket *packet);
+	CString build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacketInfo * status_info);
+	//CString get_self_sip_uri();
 private:
 	static DWORD WINAPI ReceiveSipThread(LPVOID lpParam);
 	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
 	DWORD DoReceiveSip();
 	DWORD DoSipPacketProcess();
 	void proc_sip_mess(CSipPacket *sipMess);//解析收到的sip消息
-	BOOL invite_ok_process(CSipPacketInfo *sipMess);//解析 invite ok
+	BOOL build_ack_message(CSipPacket &packet, CSipPacketInfo *request_info);
+
+	void free_call_info();
+
 
 	static DWORD WINAPI send_media_thread(LPVOID lpParam);
-	static DWORD WINAPI recv_media_thread(LPVOID lpParam);
 	DWORD do_send_media();
-	DWORD do_recv_media();
+	static DWORD WINAPI recv_audio_media_thread(LPVOID lpParam);
+	static DWORD WINAPI recv_video_media_thread(LPVOID lpParam);
+	DWORD do_recv_video_media();
+	DWORD do_recv_audio_media();
 
-	int find_send_pack_index(CSipPacket *pack);
-	//BOOL remove_binding(CSipPacket *pack);
-	//BOOL add_authenticate();
+
+
+	int find_send_pack_index(const CString &via_branch);
 
 
 private:
 	CMutex		m_recv_lock;
-	CTypedPtrArray<CPtrArray, CSipPacket*> m_recv_arr;
-	CMutex		m_send_lock;
-	CTypedPtrArray<CPtrArray, CSipPacket*> m_send_arr;
+	CTypedPtrArray<CPtrArray, CSipPacket*> m_recv_packet_arr;
+	//CMutex		m_req_info_lock;
+	//CTypedPtrArray<CPtrArray, CSipPacketInfo*> m_request_info_arr;
 
 	//user
 	CString m_user;
 	CString m_password;
-	CString m_contact_user;
-	CString m_contact;
 	//server
 	CString m_sev_addr;
 	unsigned short m_sev_port;
@@ -110,32 +122,26 @@ private:
 	WORD m_l_v_port;
 
 	//socket
-	CNetSocket *m_sock;
-	CNetSocket *m_sock_a;
-	CNetSocket *m_sock_v;
+	CNetSocket m_sock;
 	//cache
 	CRtpPacketCache *m_send_cache;
-	CRtpPacketCache *m_recv_cache;
 	//handle
 	HANDLE m_recv_h;//接收sip
 	HANDLE m_proc_h;//解析sip
-	HANDLE m_send_rtp_h;
-	HANDLE m_recv_rtp_h;
 
 	//sip
 	int m_reg_cseq;
 	int m_inv_cseq;
+	int m_ack_cseq;
+	CString m_call_id;
+
 	int m_auth_count; //认证次数
-	BOOL m_remove_binding; //取消绑定
 	//clinet
 	CLIENT_STATUS m_client_status;
 	BOOL m_bwork;
 	incoming_call_back m_incoming_call;
-	//call
-	CALL_STATUS m_call_stu;
-	CString m_call_id;
 	CSDP *m_sdp;
-	CSDP *m_local_sdp;
+	CALL_INFO *m_call_info;
 };
 
 

@@ -5,11 +5,11 @@
 #define new DEBUG_NEW
 #endif
 
-#define  SERVER_TIMEOUT     30000//sip消息等待时间
-#define	 ANSWER_TIMEOUT     60000//对方客户端接听时间
+#define  SERVER_TIMEOUT     60000 //sip消息等待时间
+#define	 ANSWER_TIMEOUT     60000 //对方客户端接听时间
 #define  SIP_BUF_SIZE		4096
 #define  TEMP_BUF_SIZE		1024
-#define  AUTH_NUMBER	3
+#define  AUTH_COUNT	3
 
 
 
@@ -18,18 +18,13 @@ CSipClient::CSipClient()
 	m_bwork = FALSE;
 	m_client_status = uninitialized;
 
-	m_sock=NULL;
-	m_sock_a = NULL;
-	m_sock_v = NULL;
+
 	m_send_cache = NULL;
-	m_recv_cache = NULL;
 	m_recv_h = NULL;
 	m_proc_h = NULL;
-	m_send_rtp_h = NULL;
-	m_recv_rtp_h = NULL;
 	m_incoming_call = NULL;
 	m_sdp=NULL;
-	m_local_sdp = NULL;
+	m_call_info = NULL;
 }
 
 CSipClient::~CSipClient()
@@ -46,85 +41,53 @@ CSipClient::~CSipClient()
 }
 
 
-BOOL CSipClient::init(const CString &sev_addr, WORD sev_port,
-	WORD l_sip_port, WORD l_a_port, WORD l_v_port)
+BOOL CSipClient::init(const CString &username, const CString &passwd, const CString &sev_addr,
+	WORD sev_port, WORD l_sip_port)
 {
+
 	BOOL ret = FALSE;
 	CString addr;
 	WORD port;
 
-
+	m_user = username;
+	m_password = passwd;
 	m_sev_addr = sev_addr;
 	m_sev_port = sev_port;
 
 	//创建sock
-	if (NULL == m_sock)
-	{
-		m_sock = new CNetSocket();
-		if (NULL == m_sock)
-			return ret;
-		if (!m_sock->Create(l_sip_port, SOCK_DGRAM))
-			return ret;
-	}
-	if (!m_sock->GetSockName(addr, port))
+	if (!m_sock.Create(l_sip_port, SOCK_DGRAM))
 		return ret;
-	//m_local_addr = addr;
+	if (!m_sock.GetSockName(addr, port))
+		return ret;
 	m_local_addr = _T("192.168.1.82");
 	m_l_sip_port = port;
 
 	//audio
-	if (NULL == m_sock_a)
-	{
-		m_sock_a = new CNetSocket();
-		if (NULL == m_sock_a)
-			return ret;
-		if (!m_sock_a->Create(l_a_port, SOCK_DGRAM))
-			return ret;
-	}
-	if (!m_sock_a->GetSockName(addr, port))
-		return ret;
-	m_l_a_port = port;
-	//video
-	if (NULL == m_sock_v)
-	{
-		m_sock_v = new CNetSocket();
-		if (NULL == m_sock_v)
-			return ret;
-		if (!m_sock_v->Create(l_v_port, SOCK_DGRAM))
-			return ret;
-	}
-	if (!m_sock_v->GetSockName(addr, port))
-		return ret;
-	m_l_v_port = port;
-
-	//sdp
-	if (NULL == m_sdp)
-	{
-		m_sdp = new CSDP();
-		if (NULL == m_sdp)
-			return FALSE;
-	}
-	if (NULL == m_local_sdp)
-	{
-		m_local_sdp = new CSDP();
-		if (NULL == m_local_sdp)
-			return FALSE;
-	}
-
-
-	//cache初始化
-	//if (NULL == m_send_cache)
+	//if (NULL == m_sock_a)
 	//{
-	//	m_send_cache = new CRtpPacketCache();
-	//	if (NULL == m_send_cache)
+	//	m_sock_a = new CNetSocket();
+	//	if (NULL == m_sock_a)
+	//		return ret;
+	//	if (!m_sock_a->Create(l_a_port, SOCK_DGRAM))
 	//		return ret;
 	//}
-	//if (NULL == m_recv_cache)
+
+	//if (!m_sock_a->GetSockName(addr, port))
+	//	return ret;
+	//m_l_a_port = port;
+	////video
+	//if (NULL == m_sock_v)
 	//{
-	//	m_recv_cache = new CRtpPacketCache();
-	//	if (NULL == m_recv_cache)
+	//	m_sock_v = new CNetSocket();
+	//	if (NULL == m_sock_v)
+	//		return ret;
+	//	if (!m_sock_v->Create(l_v_port, SOCK_DGRAM))
 	//		return ret;
 	//}
+	//if (!m_sock_v->GetSockName(addr, port))
+	//	return ret;
+	//m_l_v_port = port;
+
 
 
 	//创建接收线程
@@ -143,30 +106,31 @@ BOOL CSipClient::init(const CString &sev_addr, WORD sev_port,
 		if (NULL == m_proc_h)
 			return FALSE;
 	}
-	//发送媒体
-	if (NULL == m_send_rtp_h)
-	{
-		m_send_rtp_h = ::CreateThread(NULL, 0, send_media_thread, this, CREATE_SUSPENDED, NULL);
-		ASSERT(NULL != m_send_rtp_h);
-		if (NULL == m_send_rtp_h)
-			return FALSE;
-	}
-	//接收媒体
-	if (NULL == m_recv_rtp_h)
-	{
-		m_recv_rtp_h = ::CreateThread(NULL, 0, recv_media_thread, this, CREATE_SUSPENDED, NULL);
-		ASSERT(NULL != m_recv_rtp_h);
-		if (NULL == m_recv_rtp_h)
-			return FALSE;
-	}
 
-	m_reg_cseq = 0;
-	m_inv_cseq = 0;
+	////发送媒体
+	//if (NULL == m_send_rtp_h)
+	//{
+	//	m_send_rtp_h = ::CreateThread(NULL, 0, send_media_thread, this, CREATE_SUSPENDED, NULL);
+	//	ASSERT(NULL != m_send_rtp_h);
+	//	if (NULL == m_send_rtp_h)
+	//		return FALSE;
+	//}
+	////接收媒体
+	//if (NULL == m_recv_rtp_h)
+	//{
+	//	m_recv_rtp_h = ::CreateThread(NULL, 0, recv_media_thread, this, CREATE_SUSPENDED, NULL);
+	//	ASSERT(NULL != m_recv_rtp_h);
+	//	if (NULL == m_recv_rtp_h)
+	//		return FALSE;
+	//}
+
+	m_reg_cseq = 1;
+	m_inv_cseq = 1;
+	m_ack_cseq = 1;
 	m_auth_count = 0;
 
 	m_client_status = init_ok;
 	m_bwork = TRUE;
-	m_call_stu = INVITE_START;
 	::ResumeThread(m_recv_h);
 	::ResumeThread(m_proc_h);
 
@@ -175,170 +139,2737 @@ BOOL CSipClient::init(const CString &sev_addr, WORD sev_port,
 	return ret;
 }
 
-BOOL CSipClient::register_account(const CString & username, const CString & password)
+
+//构建并发送注册消息 
+#define SEV_TIME_OUT  2000
+BOOL CSipClient::register_account()
 {
-	if (m_client_status != init_ok || m_bwork == FALSE )
+	if (m_client_status != init_ok )
 		return FALSE;
-	m_remove_binding = FALSE;
+
+	BOOL register_ok = FALSE, register_auth = FALSE;
+	//构建消息
+	CSipPacket register_mess;
+	CSipPacketInfo send_packet_info, recv_packet_info;
+	CString auth, optional, strPeerIP;
+	int nCheckResult = 0, ret = 0;
+	WORD uPeerPort = 0;
+	BYTE pBuffer[SIP_BUF_SIZE] = { 0 };
+
+	while (1)
+	{
+		if (register_auth)
+		{
+			auth = build_auth_string(Register, Unauthorized, &recv_packet_info);
+			if (auth.IsEmpty())
+				break;
+		}
+
+		if (!build_register_message(register_mess, auth, optional))
+			break;
+		if (!send_packet(&register_mess))
+			break;
+		Sleep(200);
+
+		nCheckResult = m_sock.CheckReceive();
+		if (nCheckResult > 0 && uPeerPort == m_sev_port
+			&& strPeerIP.CompareNoCase(m_sev_addr) == 0)
+		{
+			int ret = m_sock.ReceiveFrom(pBuffer, SIP_BUF_SIZE, strPeerIP, uPeerPort);
+			if (ret > 0)
+			{
+				if (!register_mess.from_buffer((char *)pBuffer, ret))
+					break;
+				if (!recv_packet_info.from_packet(&register_mess))
+					break;
+				if (recv_packet_info.get_via().branch != send_packet_info.get_via().branch)
+					break;
+
+				if (recv_packet_info.get_status_code() == OK)
+				{
+					register_ok = TRUE;
+					break;
+				}
+				else if (recv_packet_info.get_status_code() == Unauthorized)
+				{
+					register_auth = TRUE;
+					continue;
+				}
+				else
+					break;
+			}
+		}
+
+	}
+
+	return register_ok;
+}
+
+//1 检查本地sdp，2初始化call info，3构建并发送邀请消息
+BOOL CSipClient::make_call(const CString & strCallName, WORD a_port, WORD v_port )
+{
+
+	if (m_client_status != wait || NULL == m_sdp)
+		return FALSE;
+
+	BOOL makecall_ok = FALSE;
+	CString addr;
+	WORD port;
+
 	
-	CString guid_str;
-	CSipPacket pack;
 
-	REQUEST_METHOD method;
-	REQUEST_URI req_uri;
+	//初始化call info
+	if (NULL == m_call_info)
+	{
+		m_call_info = new CALL_INFO();
+		if (NULL == m_call_info)
+			goto end;
+		if (NULL == m_call_info->l_sdp)
+		{
+			m_call_info->l_sdp = new CSDP();
+			if (NULL == m_call_info->l_sdp)
+				goto end;
+			*(m_call_info->l_sdp) = *m_sdp;
+		}
+		if (NULL == m_call_info->send_request_info)
+		{
+			m_call_info->send_request_info = new CSipPacketInfo();
+			if (NULL == m_call_info->send_request_info)
+				goto end;
+		}
+	}
 
-	//REQUEST_PARAMETER req_par;
+	m_call_info->udp_a.Close();
+	m_call_info->udp_v.Close();
+	if (!m_call_info->udp_a.Create(a_port, SOCK_DGRAM))
+		goto end;
+	if (!m_call_info->udp_v.Create(v_port, SOCK_DGRAM))
+		goto end;
+
+	m_call_info->sta = INVITE_START;
+	//修改地址 端口
+	m_call_info->l_sdp->m_strAddress = m_local_addr;
+	m_call_info->l_sdp->m_strAudioIP= m_local_addr;
+	m_call_info->l_sdp->m_strVideoIP= m_local_addr;
+	if (!m_call_info->udp_a.GetSockName(addr, port))
+		goto end;
+	m_call_info->l_sdp->m_usAudioPort = port;
+	if (!m_call_info->udp_v.GetSockName(addr, port))
+		goto end;
+	m_call_info->l_sdp->m_usVideoPort = port;
+
+
+
+	//构造inv packet
+
+	CSipPacket packet;
+	CString auth, optional;
+	if (build_invite_message(packet, strCallName, *(m_call_info->l_sdp), auth, optional))
+		return FALSE;
+
+	
+	//packet info
+	if (!m_call_info->send_request_info->from_packet(&packet))
+		return FALSE;
+
+	if (!send_packet(&packet))
+		goto end;
+
+	makecall_ok = TRUE;
+	m_inv_cseq++;
+	m_client_status = inviteing;
+	m_call_info->sta = INVITE_SEND;
+
+
+end:
+	free_call_info();
+
+
+
+	return makecall_ok;
+}
+
+//发送bye消息
+BOOL CSipClient::hangup()
+{
+
+	if (NULL == m_call_info || m_call_info->sta != INVITE_CALLING
+		|| NULL == m_call_info->send_request_info)
+		return FALSE;
+
+
+	//构建消息
+	BOOL bye_ok = FALSE;
+	CString call_id;
+	CSipPacket packet;
+	REQUEST_PARAMETER request_par;
 	VIA_PARAMETER via_par;
-	int max_forwards = 70;
 	FROM_PARAMETER from_par;
 	TO_PARAMETER to_par;
 	CONTACT_PARAMETER con_par;
-	CString call_id;
 	CSEQ_PARAMETER cseq_par;
-	CONTACT_PARAMETER contact_par;
-	CONTENT_PAR content_par;
-	DIGEST_AUTH_PAR auth_par;
+	ROUTE_PARAMETER route;
 
 
-
+	request_par.method = Bye;
+	request_par.request_uri = m_call_info->contact_uri;
 	via_par.sent_address = m_local_addr;
 	via_par.sent_port = m_l_sip_port;
-	if (!pack.build_via_branch(via_par.branch))
+	via_par.branch = CSipPacket::build_via_branch();
+	if (via_par.branch.IsEmpty())
 		return FALSE;
-	
-	if (!pack.NewGUIDString(guid_str))
-		return FALSE;
-	from_par.display_info = username;
-	from_par.from_user = username;
-	from_par.from_host = m_local_addr;
-	from_par.from_tag = guid_str;
 
-	to_par.display_info = username;
-	to_par.to_user = username;
-	to_par.to_host = m_sev_addr;
+	route = m_call_info->route;
 
-	con_par.contact_uri.user = pack.new_contact_user();
+	con_par.contact_uri.user = m_user;
 	con_par.contact_uri.host = m_local_addr;
 	con_par.contact_uri.port = m_l_sip_port;
-	con_par.parameter = _T("");
+	
+	to_par = m_call_info->send_request_info->get_to();
 
-	if (!pack.NewGUIDString(call_id))
+	from_par = m_call_info->send_request_info->get_from();
+
+	call_id = m_call_info->send_request_info->get_call_id();
+
+	cseq_par.cseq = m_call_info->send_request_info->get_cseq().cseq + 1;
+	cseq_par.method = Bye;
+
+	CString auth_str = m_call_info->send_request_info->get_auth();
+	if (auth_str.IsEmpty())
 		return FALSE;
 
+	CSipPacket bye_packet;
+
+	if (!bye_packet.build_bye_request(request_par, via_par, from_par, to_par,
+		call_id, cseq_par, &con_par, &route, auth_str, NULL))
+		return FALSE;
+
+
+
+	//构建packet info
+	//CSipPacketInfo *packet_info = NULL;
+	//packet_info = new CSipPacketInfo();
+	//if (NULL == packet_info)
+	//	return FALSE;
+	//if (!packet_info->from_packet(&bye_packet))
+	//	goto end;
+	//m_req_info_lock.Lock();
+	//m_request_info_arr.Add(packet_info);
+	//m_req_info_lock.Unlock();
+
+	//发送
+	if (!send_packet(&packet))
+		goto end;
+
+
+	bye_ok = TRUE;
 	m_reg_cseq++;
 
-	method = SipRegister;
-	req_uri.host = m_sev_addr;
-	if (!pack.build_request_line(method, req_uri))
+end:
+	if (!bye_ok)
+	{
+		if (packet_info)
+		{
+			delete packet_info;
+			packet_info = NULL;
+		}
+	}
+
+
+	return bye_ok;
+}
+
+//sdp协商， 回复ok消息
+BOOL CSipClient::call_answer(CSipPacketInfo *packet_info)
+{
+	/*
+	if (m_call_stu != INVITE_RECV || NULL == packet_info)
 		return FALSE;
 
-	if (!pack.build_mess_head(via_par, max_forwards, from_par, to_par, call_id, cseq_par,
-		contact_par, content_par, auth_par))
+	CSipPacket invite_ok_packet;
+	//CSDP *sdp;
+	CString peer_addr;
+	WORD peer_port = 0;
+
+	//本地sdp
+	if (NULL == m_local_sdp)
 		return FALSE;
 
-	//pack.build_REG_packet(req_par, via_par, max_forwards, from_par, to_par, con_par,
-	//	call_id, m_reg_cseq, );
+	//保存对方sdp
+	if (NULL == m_sdp)
+	{
+		m_sdp = new CSDP();
+		if (NULL == m_sdp)
+			return FALSE;
+	}
+	*m_sdp = packet_info->m_sdp_info;
 
-	if (!send_packet(&pack))
-		return FALSE;
 
 
 
-	//保存信息
-	m_user = username;
-	m_password = password;
-	m_contact_user = con_par.contact_uri.user;
+	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+	{
+		if (NULL == m_sock_a)
+		{
+			m_sock_a = new CNetSocket();
+			if (NULL == m_sock_a)
+				return FALSE;
+		}
+
+		if (!m_sock_a->Create(0, SOCK_DGRAM))
+			return FALSE;
+		if (!m_sock_a->GetSockName(peer_addr, peer_port))
+			return FALSE;
+		m_local_sdp->m_usAudioPort = peer_port;
+		m_local_sdp->m_strAudioIP = m_local_addr;
+
+	}
+
+	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+	{
+		if (NULL == m_sock_v)
+		{
+			m_sock_v = new CNetSocket();
+			if (NULL == m_sock_v)
+				return FALSE;
+		}
+		if (!m_sock_v->Create(0, SOCK_DGRAM))
+			return FALSE;
+		if (!m_sock_v->GetSockName(peer_addr, peer_port))
+			return FALSE;
+		m_local_sdp->m_usVideoPort = peer_port;
+		m_local_sdp->m_strVideoIP = m_local_addr;
+
+	}
+	//m_call_info->pLocalSdp = sdp;
+
+	////call info
+	//m_call_stu = INVITE_SDP_OK;
+	//m_call_id = packet_info->get_call_id();
+	//m_contact = packet_info->get_to().to_user;
+	//if (m_call_info->pSdp->m_bAudioMedia)
+	//{
+	//	if (!m_call_info->udp_audio.Create(0, SOCK_DGRAM))
+	//		return FALSE;
+	//	if (!m_call_info->udp_audio.GetSockName(peer_addr, peer_port))
+	//		return FALSE;
+	//	m_local_sdp->m_usAudioPort = peer_port;
+	//	m_local_sdp->m_strAudioIP = m_strLocalSipAddr;
+
+	//}
+	//if (m_call_info->pSdp->m_bVideoMedia)
+	//{
+	//	if (!m_call_info->udp_video.Create(0, SOCK_DGRAM))
+	//		return FALSE;
+	//	if (!m_call_info->udp_video.GetSockName(peer_addr, peer_port))
+	//		return FALSE;
+	//	m_local_sdp->m_usVideoPort = peer_port;
+	//	m_local_sdp->m_strVideoIP = m_strLocalSipAddr;
+	//}
+
+
+/*	m_local_sdp->m_strAddress = m_strLocalSipAddr;
+	m_local_sdp->m_bAudioMedia = FALSE;
+	m_local_sdp->m_bVideoMedia = TRUE;
+	m_local_sdp->m_strVideoIP = m_strLocalSipAddr;
+	m_local_sdp->m_nVideoLoadType = 96;
+	m_local_sdp->m_strVideoRtpMap = _T("96 H264/90000");
+	m_local_sdp->m_strVideoFmtp = _T("96 packetization-mode=1;profile-level-id=4D002A;sprop-parameter-sets=Z00AKp2oHgCJ+WbgICAgQA==,aO48gA==");
+
+
+
+	//回复ok消息
+	//REQUEST_PARAMETER req_par;
+	//if (!invite_ok_packet.build_OK_packet(req_par))
+	//	return FALSE;
+	//if (!send_packet(&invite_ok_packet))
+	//	return FALSE;
+
+   */
 
 
 	return TRUE;
 }
 
-BOOL CSipClient::make_call(const CString & strCallName)
+void CSipClient::set_coming_call_function(incoming_call_back function)
+{
+	m_incoming_call = function;
+}
+
+CRtpPacketCache * CSipClient::get_recv_cache()
+{
+	CRtpPacketCache *cache = NULL;
+	if (m_call_info)
+	{
+		cache = m_call_info->rtp_cache;
+	}
+	return cache;
+}
+
+void CSipClient::set_send_cache(CRtpPacketCache * cache)
+{
+	if (NULL != cache)
+		m_send_cache = cache;
+
+	return;
+}
+
+BOOL CSipClient::set_sdp(const CSDP & sdp)
+{
+	//sdp
+	if (NULL == m_sdp)
+	{
+		m_sdp = new CSDP();
+		if (NULL == m_sdp)
+			return FALSE;
+	}
+
+	*m_sdp = sdp;
+	//修改地址
+	m_sdp->m_strAddress = m_local_addr;
+	m_sdp->m_usAudioPort = 0;
+	m_sdp->m_strAudioIP = m_local_addr;
+
+	m_sdp->m_usVideoPort = 0;
+	m_sdp->m_strVideoIP = m_local_addr;
+
+	return TRUE;
+}
+
+CLIENT_STATUS CSipClient::get_client_status()
+{
+	return m_client_status;
+}
+
+CSDP CSipClient::get_sdp()
+{
+	return *m_sdp;
+}
+
+
+DWORD CSipClient::ReceiveSipThread(LPVOID lpParam)
+{
+	CSipClient *pObject = (CSipClient*)lpParam;
+	ASSERT(NULL != pObject);
+	return pObject->DoReceiveSip();
+}
+
+DWORD CSipClient::SipPacketProcessThread(LPVOID lpParam)
+{
+	CSipClient *pObject = (CSipClient*)lpParam;
+	ASSERT(NULL != pObject);
+	return pObject->DoSipPacketProcess();
+}
+
+
+//接收sip消息
+DWORD CSipClient::DoReceiveSip()
 {
 
-	if (m_client_status != register_ok || m_bwork == FALSE || NULL == m_local_sdp)
+	char * pBuffer = new char [SIP_BUF_SIZE]();
+	int nCheckResult = 0, ret = 0;
+	CString strPeerIP;
+	WORD uPeerPort = 0;
+
+	while (m_bwork)
+	{
+		nCheckResult = m_sock.CheckReceive();
+		if (nCheckResult > 0)
+		{
+			ret = m_sock.ReceiveFrom(pBuffer, SIP_BUF_SIZE, strPeerIP, uPeerPort);
+			if (ret > 0 && uPeerPort == m_sev_port
+				&& strPeerIP.CompareNoCase(m_sev_addr) == 0)
+			{
+				CSipPacket *pack = new CSipPacket();
+				if (pack)
+				{
+					if (pack->from_buffer(pBuffer, ret))
+					{
+						m_recv_lock.Lock();
+						m_recv_packet_arr.Add(pack);
+						m_recv_lock.Unlock();
+					}
+
+				}
+
+			}
+		}
+		else
+		{
+			Sleep(50);
+		}
+	}
+
+	delete [] pBuffer;
+	pBuffer = NULL;
+
+	return 0;
+}
+
+DWORD CSipClient::DoSipPacketProcess()
+{
+	CSipPacket *packet = NULL;
+	CSipPacketInfo *packet_info = NULL;
+	DWORD proc_time = 0;
+
+
+	//循环处理消息
+	while (m_bwork)
+	{
+		m_recv_lock.Lock();
+		if (m_recv_packet_arr.GetSize() > 0)
+		{
+			packet = m_recv_packet_arr[0];
+			m_recv_packet_arr.RemoveAt(0);
+		}
+		m_recv_lock.Unlock();
+
+
+		if (packet != NULL)
+		{
+			proc_sip_mess(packet);
+			delete packet;
+			packet = NULL;
+		}
+		else
+		{
+			//处理send packet 队列
+			m_req_info_lock.Lock();
+			if (m_request_info_arr.GetSize() > 0)
+			{
+				packet_info = m_request_info_arr[0];
+				if (NULL != packet_info)
+				{
+					proc_time = ::GetTickCount();
+					if (proc_time - packet_info->get_build_time() > SERVER_TIMEOUT)
+					{
+						if (packet_info->get_request().method == Invite)
+							m_client_status = wait;
+
+						delete packet_info;
+						packet_info = NULL;
+						m_request_info_arr.RemoveAt(0);
+					}
+
+				}
+			}
+			m_req_info_lock.Unlock();
+			
+			Sleep(10);
+		}
+	}
+
+	return 0;
+
+}
+
+
+DWORD CSipClient::send_media_thread(LPVOID lpParam)
+{
+	CSipClient *pObject = (CSipClient*)lpParam;
+	ASSERT(NULL != pObject);
+	return pObject->do_send_media();
+
+}
+
+
+
+DWORD CSipClient::do_send_media()
+{
+	if (NULL == m_call_info || NULL == m_send_cache)
+		return 1;
+
+	CRtpPacketPtr rtp_pack;
+
+	CString audio_addr, video_addr;
+	WORD audio_port = 0, video_port = 0;
+	BOOL a_media = FALSE, v_media = FALSE;
+
+	if (NULL != m_call_info->sdp && NULL != m_sdp)
+	{
+		if (m_call_info->sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+		{
+			a_media = TRUE;
+			audio_port = m_call_info->sdp->m_usAudioPort;
+			if (m_call_info->sdp->m_strAudioIP.IsEmpty())
+				audio_addr = m_call_info->sdp->m_strAddress;
+			else
+				audio_addr = m_call_info->sdp->m_strAudioIP;
+		}
+
+		if (m_call_info->sdp->m_bVideoMedia && m_sdp->m_bVideoMedia)
+		{
+			v_media = TRUE;
+			video_port = m_call_info->sdp->m_usVideoPort;
+			if (m_call_info->sdp->m_strVideoIP.IsEmpty())
+				video_addr = m_call_info->sdp->m_strAddress;
+			else
+				video_addr = m_call_info->sdp->m_strVideoIP;
+		}
+
+	}
+
+	while (m_bwork)
+	{
+		rtp_pack = m_send_cache->GetNextPacket();
+
+		if (NULL != rtp_pack)
+		{
+			if (rtp_pack->enType == audio && a_media)
+			{
+				m_call_info->udp_a.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+					audio_port, audio_addr);
+			}
+			else if (rtp_pack->enType == video && video)
+			{
+				m_call_info->udp_v.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+					video_port, video_addr);
+			}
+		}
+		else
+		{
+			Sleep(10);
+		}
+	}
+
+	return 0;
+}
+
+
+
+DWORD CSipClient::do_recv_video_media()
+{
+	if (NULL == m_call_info)
+		return 1;
+
+
+	int ret = 0;
+	CString recv_addr, peer_addr;
+	WORD recv_port, peer_port = 0;
+	unsigned char *buf = new unsigned char[4096]();
+	CRtpPacketPtr rtp_pack = NULL;
+
+	if (NULL != m_call_info->sdp)
+	{
+		recv_addr = m_call_info->sdp->m_strVideoIP;
+		recv_port = m_call_info->sdp->m_usVideoPort;
+
+	}
+
+
+	while (m_bwork)
+	{
+		ret = m_call_info->udp_v.ReceiveFrom(buf, 4096, peer_addr, peer_port);
+		if (ret > 0 && recv_port == peer_port
+			&& recv_addr.Compare(peer_addr) == 0)
+		{
+			rtp_pack = new RTP_PACKET();
+			memcpy_s(rtp_pack->szData, RTP_PACKET_SIZE, buf, ret);
+			rtp_pack->usPackLen = ret;
+			rtp_pack->enType = video;
+			if (m_call_info->rtp_cache)
+				m_call_info->rtp_cache->AddPacket(rtp_pack);
+		}
+		
+	}
+
+	delete[] buf;
+	buf = NULL;
+	return 0;
+}
+
+DWORD CSipClient::do_recv_audio_media()
+{
+	if (NULL == m_call_info)
+		return 1;
+
+
+	int ret = 0;
+	CString recv_addr, peer_addr;
+	WORD recv_port, peer_port = 0;
+	unsigned char *buf = new unsigned char[4096]();
+	CRtpPacketPtr rtp_pack = NULL;
+
+	if (NULL != m_call_info->sdp)
+	{
+		recv_addr = m_call_info->sdp->m_strAudioIP;
+		recv_port = m_call_info->sdp->m_usAudioPort;
+
+	}
+
+
+	while (m_bwork)
+	{
+		ret = m_call_info->udp_a.ReceiveFrom(buf, 4096, peer_addr, peer_port);
+		if (ret > 0 && recv_port == peer_port
+			&& recv_addr.Compare(peer_addr) == 0)
+		{
+			rtp_pack = new RTP_PACKET();
+			memcpy_s(rtp_pack->szData, RTP_PACKET_SIZE, buf, ret);
+			rtp_pack->usPackLen = ret;
+			rtp_pack->enType = audio;
+			if (m_call_info->rtp_cache)
+				m_call_info->rtp_cache->AddPacket(rtp_pack);
+		}
+
+	}
+
+	delete[] buf;
+	buf = NULL;
+	return 0;
+}
+
+
+//计算摘要认证的response的值
+//注册认证方法： 1 HASH1=MD5(username:realm:password) 2 HASH2 = MD5(method:uri) 3 Response = MD5(HA1:nonce:HA2)
+BOOL builf_auth_response(CString & response, const CString &username, const CString &passwd,
+	const CString &realm, const CString &nonce, REQUEST_METHOD method, SIP_URI uri)
+{
+	char *p = NULL;
+	CString  str_temp, hash1, hash2, hash3, str_method, str_uri;
+
+	switch (method)
+	{
+	case Register:
+		str_method.Format(_T("REGISTER"));
+		break;
+	case Invite:
+		str_method.Format(_T("INVITE"));
+		break;
+	case Ack:
+		str_method.Format(_T("ACK"));
+		break;
+	case Bye:
+		str_method.Format(_T("BYE"));
+		break;
+	default:
+		return FALSE;
+	}
+
+	if (uri.user.IsEmpty())
+	{
+		str_uri.Format(_T("sip:%s"), uri.host);
+	}
+	else
+	{
+		str_uri.Format(_T("sip:%s@%s"), uri.user, uri.host);
+
+	}
+	
+
+	str_temp.Format(_T("%s:%s:%s"), username, realm, passwd);
+	USES_CONVERSION;
+	p = T2A(str_temp);
+	if (NULL == p)
+		return FALSE;
+	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash1))
 		return FALSE;
 
-	CString guid_str;
-	CSipPacket pack;
+	str_temp.Format(_T("%s:%s"), str_method, str_uri);
+	p = T2A(str_temp);
+	if (NULL == p)
+		return FALSE;
+	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash2))
+		return FALSE;
 
-	REQUEST_METHOD method;
-	REQUEST_URI req_uri;
+	str_temp.Format(_T("%s:%s:%s"), hash1, nonce, hash2);
+	p = T2A(str_temp);
+	if (NULL == p)
+		return FALSE;
+	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash3))
+		return FALSE;
 
+	response = hash3;
+
+	return TRUE;
+
+
+}
+
+
+int CSipClient::find_send_pack_index(const CString &via_branch)
+{
+	if (via_branch.IsEmpty())
+		return -1;
+
+	int index = -1;
+	CString req_branch;
+
+	m_req_info_lock.Lock();
+	for (int i = 0; i < m_request_info_arr.GetSize(); i++)
+	{
+		if (NULL != m_request_info_arr[i])
+		{
+			req_branch = m_request_info_arr[i]->get_via().branch;
+			if (req_branch == via_branch)
+			{
+				index = i;
+				break;
+			}
+		}
+	}
+	m_req_info_lock.Unlock();
+
+
+	return  index;
+}
+
+
+CString CSipClient::build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacketInfo *status_info)
+{
+
+	CString response, realm, nonce, str_uri, auth;
+	SIP_URI uri;
+
+	if (code != 401 && code != 407)
+		return auth;
+	//计算response值
+	realm = status_info->get_realm();
+	nonce = status_info->get_nonce();
+	if (realm.IsEmpty() || nonce.IsEmpty())
+		return auth;
+	if (request_method == Invite)
+		uri.user = status_info->get_to().to_user;
+	uri.host = m_sev_addr;
+	if (uri.user.IsEmpty())
+		str_uri.Format(_T("sip:%s"), uri.host);
+	else
+		str_uri.Format(_T("sip:%s@%s"), uri.user, uri.host);
+
+	if (!builf_auth_response(response, m_user, m_password, realm, nonce, request_method, uri))
+		return auth;
+
+	if (code == 401)
+		auth.Format(_T("Authorization: Digest username=\"%s\",realm=\"%s\",nonce=\"%s\",uri=\"%s\",response=\"%s\",algorithm=MD5\r\n"),
+			m_user, realm, nonce, str_uri, response);
+	else if(code == 407)
+		auth.Format(_T("Proxy-Authorization: Digest username=\"%s\",realm=\"%s\",nonce=\"%s\",uri=\"%s\",response=\"%s\",algorithm=MD5\r\n"),
+			m_user, realm, nonce, str_uri, response);
+
+	return auth;
+}
+
+//CString CSipClient::get_self_sip_uri()
+//{
+//	CString sip_uri;
+//	sip_uri.Format(_T("sip:%s@%s:%d"), m_user, m_local_addr, m_l_sip_port);
+//	return sip_uri;
+//}
+
+
+
+//构建 注册认证 消息
+BOOL build_register_auth_packet(CSipPacket &packet, CSipPacketInfo *request_info, const CString &str_auth, int cseq)
+{
+	if (NULL == request_info)
+		return FALSE;
+
+	//CSipPacket packet_new;
+
+	//构造packet
+	REQUEST_PARAMETER request = request_info->get_request();
+	VIA_PARAMETER via_par = request_info->get_via();
+	via_par.branch = CSipPacket::build_via_branch();
+	if(via_par.branch.IsEmpty())
+		return FALSE;
+
+	FROM_PARAMETER from_par = request_info->get_from();
+	TO_PARAMETER to_par = request_info->get_to();
+	CString call_id = request_info->get_call_id();
+	int max_forwards = request_info->get_max_forwards();
+	CSEQ_PARAMETER cseq_par;
+	CONTACT_PARAMETER cont_par;
+	cseq_par.cseq = cseq;
+	cseq_par.method = Register;
+	cont_par = request_info->get_contact();
+
+	if (!packet.build_request_packet(request, via_par,from_par,to_par,
+		call_id, cseq_par, &cont_par, NULL, str_auth, NULL))
+		return FALSE;
+	
+
+	return TRUE;
+}
+
+
+
+BOOL CSipClient::build_ack_message(CSipPacket &packet, CSipPacketInfo * status_info)
+{
+	if (NULL == status_info || NULL == m_call_info)
+		return FALSE;
+
+	STATUS_CODE stu_code = status_info->get_status_code();
+	if (stu_code != 200 && stu_code != 407)
+		return FALSE;
+
+	REQUEST_PARAMETER request_par;
+	request_par.method = Ack;
+	request_par.request_uri.user = m_call_info->contact_uri.user;
+	if (stu_code == 407)
+	{
+		request_par.request_uri.host = m_sev_addr;
+	}
+	else
+	{
+		request_par.request_uri.host = status_info->get_contact().contact_uri.host;
+		request_par.request_uri.port = status_info->get_contact().contact_uri.port;
+		request_par.rinstance = status_info->get_contact().rinstance;
+	}
+
+
+	VIA_PARAMETER via_par;
+	via_par.sent_address = _T("192.168.100.82");
+	via_par.sent_port = m_l_sip_port;
+	via_par.branch = CSipPacket::build_via_branch();
+	if (via_par.branch.IsEmpty())
+		return FALSE;
+
+	FROM_PARAMETER for_par;
+	for_par = status_info->get_from();
+
+	TO_PARAMETER to_par;
+	to_par = status_info->get_to();
+
+	CONTACT_PARAMETER contact_par, *con_p = NULL;
+	if (stu_code == 200)
+	{
+		contact_par.contact_uri.user = m_user;
+		contact_par.contact_uri.host = m_local_addr;
+		contact_par.contact_uri.port = m_l_sip_port;
+		con_p = &contact_par;
+	}
+
+
+	CString call_id = status_info->get_call_id();
+
+	CSEQ_PARAMETER cseq_par;
+	cseq_par.method = Ack;
+	cseq_par.cseq = m_ack_cseq;
+
+	CString auth;
+	if (stu_code == 200)
+		auth = m_call_info->invite_auth;
+
+	ROUTE_PARAMETER route, *p_route = NULL;
+	if (stu_code == 200)
+	{
+		route = status_info->get_route();
+		p_route = &route;
+	}
+
+	if (!packet.build_request_packet(request_par, via_par, for_par, to_par,
+		call_id, cseq_par, con_p, p_route, auth, NULL))
+		return FALSE;
+
+	return TRUE;
+}
+
+void CSipClient::free_call_info()
+{
+	if (NULL != m_call_info)
+	{
+		if (NULL != m_call_info->l_sdp)
+		{
+			delete m_call_info->l_sdp;
+			m_call_info->l_sdp = NULL;
+		}
+
+		if (NULL != m_call_info->sdp)
+		{
+			delete m_call_info->sdp;
+			m_call_info->sdp = NULL;
+		}
+
+		if (NULL != m_call_info->send_request_info)
+		{
+			delete m_call_info->send_request_info;
+			m_call_info->send_request_info = NULL;
+		}
+
+		if (NULL != m_call_info->rtp_cache)
+		{
+			delete m_call_info->rtp_cache;
+			m_call_info->rtp_cache = NULL;
+		}
+
+		delete m_call_info;
+		m_call_info = NULL;
+	}
+}
+
+DWORD CSipClient::recv_audio_media_thread(LPVOID lpParam)
+{
+	CSipClient *pObject = (CSipClient*)lpParam;
+	ASSERT(NULL != pObject);
+	return pObject->do_recv_audio_media();
+
+	return 0;
+}
+
+DWORD CSipClient::recv_video_media_thread(LPVOID lpParam)
+{
+	CSipClient *pObject = (CSipClient*)lpParam;
+	ASSERT(NULL != pObject);
+	return pObject->do_recv_video_media();
+
+	return 0;
+}
+
+
+//构造带认证的邀请消息
+BOOL build_auth_invite_packet(CSipPacket &invite_packet, CSipPacketInfo *old_request_info,
+	const CString &auth, int cseq)
+{
+
+	CString call_id, guid_str;
+	//REQUEST_METHOD method;
+	REQUEST_PARAMETER request_par;
 	VIA_PARAMETER via_par;
 	int max_forwards = 70;
 	FROM_PARAMETER from_par;
 	TO_PARAMETER to_par;
 	CONTACT_PARAMETER con_par;
-	CString call_id;
 	CSEQ_PARAMETER cseq_par;
-	CONTACT_PARAMETER contact_par;
-	CONTENT_PAR content_par;
-	DIGEST_AUTH_PAR auth_par;
+	CSDP sdp;
+
+	//构造inv packet
+	request_par = old_request_info->get_request();
+	via_par = old_request_info->get_via();
+	via_par.branch = CSipPacket::build_via_branch();
+	if (via_par.branch.IsEmpty())
+		return FALSE;
+	from_par = old_request_info->get_from();
+	to_par = old_request_info->get_to();
+	con_par = old_request_info->get_contact();
+	//****/con_par.contact_uri.host = _T("192.168.100.82");
+	call_id = old_request_info->get_call_id();
+	cseq_par.cseq = cseq;
+	cseq_par.method = Invite;
+
+	sdp = old_request_info->get_sdp_info();
+
+	if (!invite_packet.build_request_packet(request_par, via_par, from_par,
+		to_par, call_id, cseq_par, &con_par, NULL, auth, &sdp))
+		return FALSE;
+
+	return TRUE;
+}
 
 
-	method = SipInvite;
-	req_uri.user = strCallName;
-	req_uri.host = m_sev_addr;
+//**************************************************
+//*功能：处理接收的sip消息主要线程
+//*参数：
+//*返回：
+//**************************************************
+void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
+{
+	if (recv_pack == NULL)
+		return;
+
+	CSipPacketInfo recv_packet_info;
+	if (!recv_packet_info.from_packet(recv_pack))
+		return;
+
+
+	if (recv_packet_info.get_type() == sip_status)//sip响应消息
+	{
+
+		//响应消息，需要找到对应的请求消息
+		BOOL remove_request = FALSE;
+		int request_index = -1;
+		REQUEST_PARAMETER request_par;
+		STATUS_CODE recv_code;
+		CSipPacketInfo *req_info = NULL;
+		request_index = find_send_pack_index(recv_packet_info.get_via().branch);
+		if (request_index < 0)
+			return;
+		request_par = req_info->get_request();
+		recv_code = recv_packet_info.get_status_code();
+
+
+		switch (request_par.method)
+		{
+		case Register:
+			switch (recv_code)
+			{
+			case Trying:
+				break;
+			case Ringing:
+				break;
+			case OK:
+				if (m_client_status == init_ok)
+					m_client_status = wait;
+				break;
+			case Unauthorized:  //注册认证
+			{
+				if (m_client_status != init_ok || m_auth_count > AUTH_COUNT)
+					break;
+				BOOL reg_auth_ok = FALSE;
+				//计算认证字符串
+				CString str_auth = build_auth_string(Register, Unauthorized, &recv_packet_info);
+				if (str_auth.IsEmpty())
+					break;
+				//构建新的注册包
+				CSipPacket auth_packet;
+				if (!build_register_auth_packet(auth_packet, req_info, str_auth, m_reg_cseq))
+					break;
+				//构建新的packet info
+				CSipPacketInfo *auth_info = new CSipPacketInfo();
+				if (!auth_info->from_packet(&auth_packet))
+					goto reg_auth_end;
+				m_request_info_arr.Add(auth_info);
+				//发送
+				if (!send_packet(&auth_packet))
+					goto reg_auth_end;
+				m_reg_cseq++;
+				reg_auth_ok = TRUE;
+			reg_auth_end:
+				if (!reg_auth_ok)
+				{
+					if (auth_info)
+					{
+						delete auth_info;
+						auth_info = NULL;
+					}
+				}
+			}
+				break;
+			case Proxy_Authentication:
+				break;
+			default:
+				break;
+			}
+			remove_request = TRUE;
+			break;
+		case Invite:
+			switch (recv_code)
+			{
+			case Trying:
+				break;
+			case Ringing:
+				break;
+			case OK:
+			{
+				//解析sdp
+				if (NULL == m_call_info || m_client_status != inviteing)
+					break;
+				if (NULL == m_call_info->sdp)
+					m_call_info->sdp = new CSDP();
+				*(m_call_info->sdp) = recv_packet_info.get_sdp_info();
+				if (m_call_info->sdp->m_bVideoMedia)
+				{
+					int i = m_call_info->sdp->m_strVideoRtpMap.Find(_T("H264"));
+					if (i < 0)
+						break;
+				}
+				m_call_info->sta = INVITE_SDP_OK;
+				//构建ack 
+				CSipPacket ack_packet;
+				CString auth;
+				auth = req_info->get_auth();
+				if (!build_ack_message(ack_packet, &recv_packet_info))
+					break;
+				if (!send_packet(&ack_packet))
+					break;
+				m_ack_cseq++;
+				m_call_info->sta = INVITE_ACK_OK;
+				*(m_call_info->send_info) = recv_packet_info;
+				//开始媒体传输
+				//发送媒体数据
+				m_call_info->send_handle = ::CreateThread(NULL, 0, send_media_thread, this, CREATE_SUSPENDED, NULL);
+				ASSERT(NULL != m_call_info->send_handle);
+				if (NULL == m_call_info->send_handle)
+					break;
+				//接收媒体
+				//初始化recv cache
+				if (NULL == m_call_info->rtp_cache)
+				{
+					m_call_info->rtp_cache = new CRtpPacketCache();
+					if (NULL == m_call_info->rtp_cache)
+						break;
+				}
+				if (m_call_info->sdp->m_bAudioMedia)
+				{
+					m_call_info->recv_audio_handle = ::CreateThread(NULL, 0,
+						recv_audio_media_thread, this, CREATE_SUSPENDED, NULL);
+					ASSERT(NULL != m_call_info->recv_audio_handle);
+					if (NULL == m_call_info->recv_audio_handle)
+						break;
+				}
+				if (m_call_info->sdp->m_bVideoMedia)
+				{
+					m_call_info->recv_video_handle = ::CreateThread(NULL, 0,
+						recv_video_media_thread, this, CREATE_SUSPENDED, NULL);
+					ASSERT(NULL != m_call_info->recv_video_handle);
+					if (NULL == m_call_info->recv_video_handle)
+						break;
+				}
+
+				//保存信息
+				m_call_info->id = recv_packet_info.get_call_id();
+				m_call_info->route = recv_packet_info.get_route();
+				m_call_info->contact_uri = recv_packet_info.get_contact().contact_uri;
+
+				::ResumeThread(m_call_info->send_handle);
+				::ResumeThread(m_call_info->recv_audio_handle);
+				::ResumeThread(m_call_info->recv_video_handle);
+				m_call_info->sta = INVITE_CALLING;
+				m_client_status = calling;
+
+
+				break;
+			}
+			case Unauthorized:
+				break;
+			case Proxy_Authentication:
+			{
+				//发送ack
+				BOOL invite_auth_ok = FALSE;
+				CSipPacket ack_packet, auth_invite_packet;
+				CString auth;
+				if (!build_ack_message(ack_packet,  &recv_packet_info))
+					break;
+				if (send_packet(&ack_packet))
+					m_ack_cseq++;
+				//构建 认证邀请消息
+				CString auth_str = build_auth_string(Invite, Proxy_Authentication, &recv_packet_info);
+				if (auth_str.IsEmpty())
+					break;
+				if (!build_auth_invite_packet(auth_invite_packet, req_info, auth_str, m_inv_cseq))
+					break;
+				CSipPacketInfo *packet_info = new CSipPacketInfo();
+				if (packet_info == NULL)
+					break;
+				if (!packet_info->from_packet(&auth_invite_packet))
+					goto end;
+
+				if (!send_packet(&auth_invite_packet))
+					goto end;
+
+				if (NULL != m_call_info)
+					m_call_info->invite_auth = auth_str;
+				
+
+				m_req_info_lock.Lock();
+				m_request_info_arr.Add(packet_info);
+				m_req_info_lock.Unlock();
+				invite_auth_ok = TRUE;
+				m_inv_cseq++;
+
+			end:
+				if (!invite_auth_ok)
+				{
+					if (packet_info != NULL)
+					{
+						delete packet_info;
+						packet_info = NULL;
+					}
+				}
+
+
+			}
+				break;
+			default:
+				break;
+			}
+			break;
+		case Ack:
+			break;
+		case Bye:
+			switch (recv_code)
+			{
+			case Trying:
+				break;
+			case Ringing:
+				break;
+			case OK:
+				//结束通话
+				if (NULL == m_call_info && m_call_info->sta != INVITE_CALLING)
+					break;
+				//结束线程
+				m_call_info->sta = INVITE_DISCONNECTED;
+				//回收资源
+
+				break;
+			case Unauthorized:
+				break;
+			case Proxy_Authentication:
+				break;
+			default:
+				break;
+			}
+			break;
+		}
+
+	status_end:
+		if (remove_request)
+		{
+			if(req_info !=NULL)
+			delete req_info;
+			req_info = NULL;
+			m_request_info_arr.RemoveAt(request_index);
+
+		}
+	}
+	else if (recv_packet_info.get_type() == sip_request)
+	{
+		if (recv_packet_info.get_request().method == Invite)
+		{
+			//收到通话邀请
+		}
+	}
+
+
+
+	//if (find_index >= 0)//找到下标
+		//{
+		//	send_packet_info = m_send_info_arr[find_index];
+		//	//根据请求消息，做相应处理
+		//	if (send_packet_info->get_request_method() == Register)//注册请求
+		//	{
+		//		if (recv_packet_info.get_status_code() == 200)
+		//		{
+		//			m_client_status = wait;
+		//		}
+		//		else if (recv_packet_info.get_status_code() == 401)	//需要认证
+		//		{
+		//			CString auth_string, via_branch;
+		//			if (NULL == send_packet_info)
+		//				return ;
+		//			if (m_auth_count < AUTH_NUMBER && build_auth_string(auth_string, recv_pack))
+		//			{
+		//				//构建和发送认证注册包
+		//				CSipPacket *pack = recv_pack->clone_packet();
+		//				CSipPacketInfo *resp_packet_info = new  CSipPacketInfo();
+		//				if (pack && pack->modify_via_branch(via_branch))
+		//				{
+		//					pack->add_entry(auth_string);
+		//					send_packet(pack);
+		//					if (!send_packet_info->from_packet(pack))
+		//						return;
+		//					m_send_info_arr.Add(send_packet_info);
+		//					m_auth_count++;
+		//				}
+		//				if (pack)
+		//					delete pack;
+		//			}
+		//		}
+		//		remove_request = TRUE;
+		//	}
+		//	else if (send_packet_info->get_request_method() == Invite)//邀请请求
+		//	{
+		//		if (recv_packet_info.get_status_code() == 200)
+		//		{
+		//			if (m_client_status == inviteing && recv_packet_info.get_call_id()== m_call_id)
+		//			{
+		//				if (invite_ok_process(&recv_packet_info))
+		//				{
+		//					m_client_status = calling;
+		//					remove_request = TRUE;
+		//				}
+		//				else
+		//					m_client_status = wait;
+		//			}
+		//		}
+		//		else if (recv_packet_info.get_status_code() == 407)	//需要认证
+		//		{
+		//		}
+		//	}
+		//}
+		//if (remove_request)
+		//{
+		//	if (NULL != m_send_info_arr[find_index])
+		//	{
+		//		delete m_send_info_arr[find_index];
+		//		m_send_info_arr.RemoveAt(find_index);
+		//	}
+		//}
+		//m_send_lock.Unlock();
+	//if (recv_packet_info.m_type == sip_request)
+	//{
+	//	if (SipInvite == recv_packet_info.m_method)//收到来电
+	//	{
+	//		//保存sdp 发送ok
+	//		if (register_ok == m_client_status)
+	//		{
+	//			m_call_stu = INVITE_RECV;
+	//			if (NULL != m_incoming_call)
+	//				m_incoming_call(&recv_packet_info);
+	//		}
+	//	}
+	//	else if (SipAck == recv_packet_info.m_method)
+	//	{
+	//		//发送rtp
+	//		if (m_call_id == recv_packet_info.m_call_id &&
+	//			m_call_stu == INVITE_SDP_OK)
+	//		{
+	//			m_call_stu = INVITE_ACK_OK;
+	//		}
+	//	}
+	//}
+	//else if(recv_packet_info.m_type == sip_status)//sip响应消息
+	//{
+	//	//VIA_PARAMETER via_par, send_via_par;
+	//	//if (!recv_packet_info.get_via(via_par, 0))
+	//	//	return;
+	//	//int i = 0;
+	//	//for (i = 0; i < m_send_arr.GetSize(); i++)
+	//	//{
+	//	//	send_pack = m_send_arr.GetAt(i);
+	//	//	if (NULL == send_pack)
+	//	//		continue;
+	//	//	if (!send_packet_info.from_packet(send_pack))
+	//	//		continue;
+	//	//	if (send_packet_info.get_via(send_via_par, 0))
+	//	//	{
+	//	//		if (send_via_par.branch == via_par.branch)
+	//	//		{
+	//	//			find_request = TRUE;
+	//	//			break;
+	//	//		}
+	//	//	}
+	//	//}
+	//	//if (find_request)
+	//	//{
+	//	//	STATUS_CODE status_code = recv_packet_info.get_status_code();
+	//	//	REQUEST_METHOD method = send_packet_info.get_request_para().method;
+	//	//	if (method  == SipRegister)
+	//	//	{
+	//	//		if (status_code == 200)
+	//	//		{
+	//	//			if (m_client_status == init_ok)
+	//	//			{
+	//	//				CONTACT_PARAMETER contact_par;
+	//	//				if (send_packet_info.get_contact(contact_par, 0))
+	//	//					m_contact_user = contact_par.contact_uri.user;
+	//	//				m_client_status = register_ok;
+	//	//				remove_request = TRUE;
+	//	//			}
+	//	//		}
+	//	//		else if (status_code == 401)
+	//	//		{
+	//	//			m_auth_count++;
+	//	//			if (m_auth_count <= 3)
+	//	//			{
+	//	//				CSipPacket pack;
+	//	//				CString realm, nonce, uri, response;
+	//	//				if (!get_nonce_realm(recv_pack, realm, nonce))
+	//	//					return;
+	//	//				uri.Format(_T("sip:%s"), m_sev_addr);
+	//	//				if (!builf_auth_response(response, m_user, m_password, realm,
+	//	//					_T("REGISTER"), uri, nonce))
+	//	//					return ;
+	//	//				if (!pack.build_REG_packet())
+	//	//					return;
+	//	//				if (!send_packet(&pack))
+	//	//					return;
+	//	//				
+	//	//			}
+	//	//		}
+	//	//	}
+	//	//	else if (method == SipInvite)
+	//	//	{
+	//	//		if (status_code == 200)
+	//	//		{
+	//	//			if (m_client_status == inviteing &&
+	//	//				recv_packet_info.get_call_id() == m_call_id)
+	//	//			{
+	//	//				if (invite_ok_process(&recv_packet_info))
+	//	//				{
+	//	//					m_client_status = calling;
+	//	//					remove_request = TRUE;
+	//	//				}
+	//	//				else
+	//	//					m_client_status = register_ok;
+	//	//				
+	//	//			}
+	//	//		}
+	//	//	}
+	//	//	if (remove_request)
+	//	//	{
+	//	//		if (send_pack != NULL)
+	//	//		{
+	//	//			delete send_pack;
+	//	//			send_pack = NULL;
+	//	//		}
+	//	//	}
+	//	//}
+	//	//m_send_arr.RemoveAt(i);
+	//	//m_send_lock.Unlock();
+	//}
+
+	return;
+}
+
+
+
+
+BOOL CSipClient::build_register_message(CSipPacket &packet, const CString & auth, const CString &optional)
+{
+	CString call_id;
+	CSipPacket packet;
+	REQUEST_PARAMETER request_par;
+	VIA_PARAMETER via_par;
+	FROM_PARAMETER from_par;
+	TO_PARAMETER to_par;
+	CONTACT_PARAMETER con_par;
+	CSEQ_PARAMETER cseq_par;
+
+	//request
+	request_par.method = Register;
+	request_par.request_uri.host = m_sev_addr;
+
+	//via
+	via_par.sent_address = m_local_addr;
+	via_par.sent_port = m_l_sip_port;
+	via_par.branch = CSipPacket::build_via_branch();
+	if (via_par.branch.IsEmpty())
+		return FALSE;
+
+	int max_forwards = 70;
+
+	//contact
+	con_par.contact_uri.user = m_user;
+	con_par.contact_uri.host = m_local_addr;
+	con_par.contact_uri.port = m_l_sip_port;
+	con_par.rinstance = CSipPacket::NewGUIDString();
+	if (con_par.rinstance.IsEmpty())
+		return FALSE;
+	//to
+	to_par.display_info = m_user;
+	to_par.to_user = m_user;
+	to_par.to_host = m_sev_addr;
+	//from
+	from_par.display_user = m_user;
+	from_par.user = m_user;
+	from_par.host = m_sev_addr;
+	from_par.tag = CSipPacket::NewGUIDString();
+	if (from_par.tag.IsEmpty())
+		return FALSE;
+	//call id
+	call_id = CSipPacket::NewGUIDString();
+	if (call_id.IsEmpty())
+		return FALSE;
+	//cseq
+	cseq_par.method = Register;
+	cseq_par.cseq = m_reg_cseq;
+
+
+
+	if (!packet.build_register_request(request_par, via_par, max_forwards, con_par,
+		to_par, from_par, call_id, cseq_par, auth, optional))
+		return FALSE;
+
+
+	return TRUE;
+}
+
+BOOL CSipClient::build_invite_message(CSipPacket & packet, const CString &call_name,
+	const CSDP &sdp, const CString & auth, const CString & optional)
+{
+	CString call_id;
+	CSipPacket packet;
+	REQUEST_PARAMETER request_par;
+	VIA_PARAMETER via_par;
+	FROM_PARAMETER from_par;
+	TO_PARAMETER to_par;
+	CONTACT_PARAMETER con_par;
+	CSEQ_PARAMETER cseq_par;
+
+	//request
+	request_par.method = Invite;
+	request_par.request_uri.user = call_name;
+	request_par.request_uri.host = m_sev_addr;
 
 	via_par.sent_address = m_local_addr;
 	via_par.sent_port = m_l_sip_port;
-	if (!pack.build_via_branch(via_par.branch))
+	via_par.branch = CSipPacket::build_via_branch();
+	if (via_par.branch.IsEmpty())
 		return FALSE;
 
-	if (!pack.NewGUIDString(guid_str))
-		return FALSE;
-	from_par.display_info = m_user;
-	from_par.from_user = m_user;
-	from_par.from_host = m_sev_addr;
-	from_par.from_tag = guid_str;
+	int max_forwards = 70;
 
-	//to_par.display_info = strCallName;
-	to_par.to_user = strCallName;
-	to_par.to_host = m_sev_addr;
-
-	con_par.contact_uri.user = m_contact_user;
+	con_par.contact_uri.user = m_user;
 	con_par.contact_uri.host = m_local_addr;
 	con_par.contact_uri.port = m_l_sip_port;
-	//con_par.parameter = _T("");
 
-	if (!pack.NewGUIDString(call_id))
+	from_par.display_user = m_user;
+	from_par.user = m_user;
+	from_par.host = m_sev_addr;
+	from_par.tag = CSipPacket::NewGUIDString();
+	if (from_par.tag.IsEmpty())
 		return FALSE;
 
-	m_inv_cseq++;
+	to_par.display_info = call_name;
+	to_par.to_user = call_name;
+	to_par.to_host = m_sev_addr;
 
 
 
-	CString sdp = m_local_sdp->to_string();
-
-	if (!pack.build_request_line(method, req_uri))
-		return FALSE;
-	if (!pack.build_mess_head(via_par, max_forwards, from_par, to_par, call_id, cseq_par,
-		contact_par, content_par, auth_par))
-		return FALSE;
-	if (!pack.build_mess_body(m_local_sdp))
+	call_id = CSipPacket::NewGUIDString();
+	if (call_id.IsEmpty())
 		return FALSE;
 
+	cseq_par.cseq = m_inv_cseq;
+	cseq_par.method = Invite;
 
 
-	//pack.build_INV_packet(req_par, via_par, max_forwards, from_par, to_par, con_par,
-	//	call_id, m_reg_cseq, sdp);
 
-	if (!send_packet(&pack))
+	if (!packet.build_inviter_request(request_par, via_par, max_forwards, con_par,
+		to_par, from_par, call_id, cseq_par, sdp, auth, optional))
 		return FALSE;
 
 
+	return TRUE;
+}
 
-	//保存信息
-	m_contact = strCallName;
-	m_call_id = call_id;
+BOOL CSipClient::build_BYE_packet(CSipPacket & packet, CSipPacketInfo * status_info)
+{
 
+	if (NULL == m_call_info || NULL == m_call_info->inv_ok_info)
+		return FALSE;
+
+
+
+	REQUEST_PARAMETER req_par;
+	VIA_PARAMETER via_par;
+	FROM_PARAMETER from_par;
+	TO_PARAMETER to_par;
+	CONTACT_PARAMETER con_par;
+	CSEQ_PARAMETER cseq_par;
+	ROUTE_PARAMETER route_par;
+	CString str_auth;
+
+
+	req_par.method = Bye;
+	req_par.request_uri = m_call_info->inv_ok_info->get_contact().contact_uri;
+	req_par.rinstance = m_call_info->inv_ok_info->get_contact().rinstance;
+
+	via_par.sent_address = m_local_addr;
+	via_par.sent_port = m_l_sip_port;
+	via_par.branch = CSipPacket::build_via_branch();
+	if (via_par.branch.IsEmpty())
+		return FALSE;
+
+	route_par = m_call_info->inv_ok_info->get_route();
+
+	to_par = m_call_info->inv_ok_info->get_to();
+	from_par = m_call_info->inv_ok_info->get_from();
+
+	cseq_par.cseq = m_inv_cseq;
+	cseq_par.method = Bye;
+
+	str_auth = m_call_info->inv_ok_info->get_auth();
+
+	if (!packet.build_request_packet(req_par, via_par, from_par, to_par, m_call_info->id,
+		cseq_par, NULL, &route_par, str_auth, NULL))
+		return FALSE;
+
+
+
+
+	return 0;
+}
+
+//向服务器发送sip消息
+BOOL CSipClient::send_packet(CSipPacket *pack)
+{
+	if (pack == NULL)
+		return FALSE;
+
+	int ret = 0, flag = 0;
+	BYTE buf[4096] = { 0 };
+
+	int len = pack->get_data(buf, 4096);
+	if (len < 0)
+		return FALSE;
+	//BYTE *p = buf;
+
+	while (len)
+	{
+		ret = m_sock.SendTo(buf + flag, len, m_sev_port, m_sev_addr);
+		if (ret < 0)
+			return FALSE;
+		flag += ret;
+		len -= ret;
+	}
+
+
+	/*if (strData.IsEmpty())
+		return FALSE;
+
+	int flag = 0, ret = 0, data_len = 0;
+	BYTE * pbData = NULL;
+
+	pbData = new BYTE [data_len];
+	if (NULL == pbData)
+		return FALSE;
+	data_len = strData.GetLength();
+	memcpy(pbData, strData.GetBuffer(data_len), data_len);
+
+
+	while (data_len)
+	{
+		ret = m_udpSipSock.SendTo(pbData + flag, data_len, m_usServerPort, m_strSipServerAddr);
+		if (ret < 0)
+			return FALSE;
+		flag += ret;
+		data_len -= ret;
+	}*/
 
 
 	return TRUE;
 
-
 }
+
+//获取 nonce realm
+//BOOL get_nonce_realm(CSipPacket *pPacket, CString &strNonce, CString &realm)
+//{
+//	if (NULL == pPacket)
+//		return FALSE;
+//
+//	int i = 0, j = 0;
+//	CString str_data;
+//	BYTE buf[4096] = { 0 };
+//
+//	i = pPacket->get_data(buf, 4096);
+//	if (i < 0)
+//		return FALSE;
+//	str_data = buf;
+//
+//	i = str_data.Find(_T("realm="));
+//	if (i < 0)
+//		return FALSE;
+//	i += strlen("realm=\"");
+//	j = str_data.Find('\"', i);
+//	if (j < 0)
+//		return FALSE;
+//	realm = str_data.Mid(i, j - i);
+//
+//	i = str_data.Find(_T("nonce="));
+//	if (i < 0)
+//		return FALSE;
+//	i += strlen("nonce=\"");
+//	j = str_data.Find('\"', i);
+//	if (j < 0)
+//		return FALSE;
+//	strNonce = str_data.Mid(i, j - i);
+//
+//
+//
+//	return TRUE;
+//}
+
+
+//开启媒体传输
+//1创建socket 2打开rtp线程
+//BOOL CSipClient::start_rtp_transport()
+//{
+//	if (NULL == m_sdp && NULL == m_local_sdp)
+//		return FALSE;
+//
+//	CString peer_addr;
+//	WORD peer_port;
+//
+//	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+//	{
+//		if (NULL == m_sock_a)
+//		{
+//			m_sock_a = new CNetSocket();
+//			if (NULL == m_sock_a)
+//				return FALSE;
+//		}
+//
+//		if (!m_sock_a->Create(0, SOCK_DGRAM))
+//			return FALSE;
+//		if (!m_sock_a->GetSockName(peer_addr, peer_port))
+//			return FALSE;
+//		m_local_sdp->m_usAudioPort = peer_port;
+//		m_local_sdp->m_strAudioIP = m_local_addr;
+//	}
+//
+//	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
+//	{
+//		if (NULL == m_sock_v)
+//		{
+//			m_sock_v = new CNetSocket();
+//			if (NULL == m_sock_v)
+//				return FALSE;
+//		}
+//		if (!m_sock_v->Create(0, SOCK_DGRAM))
+//			return FALSE;
+//		if (!m_sock_v->GetSockName(peer_addr, peer_port))
+//			return FALSE;
+//		m_local_sdp->m_usVideoPort = peer_port;
+//		m_local_sdp->m_strVideoIP = m_local_addr;
+//	}
+//
+//	::ResumeThread(m_send_rtp_h);
+//	::ResumeThread(m_recv_rtp_h);
+//
+//
+//	
+//
+//	return TRUE;
+//}
+
+//BOOL CSipClient::start_rtp_transport()
+//{
+//	if (NULL == m_sdp && NULL == m_local_sdp)
+//		return FALSE;
+//
+//
+//
+//
+//
+//
+//	return 0;
+//}
+
+
+//收到invite ok的回应
+//1初始化call_info， 2发送ack， 3开启媒体传输
+//BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
+//{
+//	if (pack_info == NULL)
+//		return FALSE;
+//
+//	//发送ack
+//	CSipPacket ack_packet;
+//	SIP_URI request_uri;
+//	VIA_PARAMETER via_par; 
+//	int max_forward = 70; 
+//	FROM_PARAMETER from_par;
+//	TO_PARAMETER to_par; 
+//	CSEQ_PARAMETER cseq;
+//	CString call_id;
+//	//CString optional;
+//	if (!ack_packet.build_ack_packet(&request_uri, &via_par, max_forward, &from_par,
+//		&to_par, &cseq, call_id, NULL))
+//		return FALSE;
+//
+//	if (!send_packet(&ack_packet))
+//		return FALSE;
+//
+//	//创建媒体传输线程
+//	m_call_info->send_handle = ::CreateThread(NULL, 0, send_media_thread, this, CREATE_SUSPENDED, NULL);
+//	ASSERT(NULL != m_call_info->send_handle);
+//	if (NULL == m_call_info->send_handle)
+//		return FALSE;
+//	//接收媒体
+//	m_call_info->recv_handle = ::CreateThread(NULL, 0, recv_media_thread, this, CREATE_SUSPENDED, NULL);
+//	ASSERT(NULL != m_call_info->recv_handle);
+//	if (NULL == m_call_info->recv_handle)
+//		return FALSE;
+//
+//	::ResumeThread(m_call_info->send_handle);
+//	::ResumeThread(m_call_info->recv_handle);
+//
+//
+//
+//	return TRUE;
+//}
+
+
+//DWORD CSipClient::recv_media_thread(LPVOID lpParam)
+//{
+//	CSipClient *pObject = (CSipClient*)lpParam;
+//	ASSERT(NULL != pObject);
+//	return pObject->do_recv_media();
+//}
+
+//DWORD CSipClient::do_send_media()
+//{
+//	if (NULL == m_call_info || NULL == m_sdp )
+//		return 1;
+//
+//	CRtpPacketPtr rtp_pack ;
+//
+//	while (m_bwork)
+//	{
+//		if (NULL != m_send_cache)
+//			rtp_pack = m_send_cache->GetNextPacket();
+//
+//		if (rtp_pack)
+//		{
+//			if (rtp_pack->enType == audio && m_sdp->m_bAudioMedia)
+//			{
+//				//m_call_info->udp_a.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+//				//	m_sdp->m_usAudioPort, m_sdp->m_strAudioIP);
+//				m_call_info->udp_a.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+//					m_call_info->m_usAudioPort, m_sdp->m_strAudioIP);
+//			}
+//			else if (rtp_pack->enType == video && m_sdp->m_bVideoMedia)
+//			{
+//				m_call_info->udp_v.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+//						m_sdp->m_usVideoPort, m_sdp->m_strVideoIP);
+//			}
+//		}
+//		else
+//		{
+//			Sleep(10);
+//		}
+//	}
+//
+//	return 0;
+//}
+
+//查找packet中是否含有sdp， 如果有返回TRUE，并返回sdp
+//BOOL find_sdp(CSipPacket *packet, CSDP &sdp)
+//{
+//	if (NULL == packet)
+//		return FALSE;
+//
+//	//查找content-type字段
+//	CSDP new_sdp;
+//	BOOL find_sdp = FALSE;
+//	int i = 0, content_len = 0;
+//	char value[128] = { 0 }, *sdp_falg = NULL, *sdp_buf = NULL;
+//
+//	char *data = (char *)packet->get_data();
+//	if (NULL == data)
+//		return FALSE;
+//	char *content = strstr(data, "Content-Type");
+//	if (NULL == content)
+//		return FALSE;
+//	content += strlen("Content-Type: ");
+//	while (content[i]!='\r')
+//	{
+//		value[i] = content[i];
+//		i++;
+//	}
+//	if (strcmp(value, "application/sdp") != 0)
+//		return FALSE;
+//	//查找sdp位置
+//	sdp_falg = strstr(data, "\r\n\r\nv=");
+//	if (NULL == sdp_falg)
+//		return FALSE;
+//
+//	//获取content-length长度
+//	content = strstr(data, "Content-Length");
+//	if (NULL == content)
+//		return FALSE;
+//	content += strlen("Content-Length:");
+//	i = 0;
+//	while (content[i]!='\r')
+//	{
+//		if (content[i] >= 48 && content[i] <= 57)
+//			content_len = content_len * 10 + (content[i] - 48);
+//		i++;
+//	}
+//	if (content_len <= 0)
+//		return FALSE;
+//	//赋值
+//	if (!new_sdp.from_buffer(sdp_falg, content_len))
+//		return FALSE;
+//	sdp = new_sdp;
+//
+//	return TRUE;
+//
+//}
+
+//BOOL CSipClient::start_rtp_transport()
+//{
+//	m_hSendRtpThread = ::CreateThread(NULL, 0, send_rtp_thread, this, CREATE_SUSPENDED, NULL);
+//	ASSERT(NULL != m_hSendRtpThread);
+//	if (NULL == m_hSendRtpThread)
+//	{
+//		return FALSE;
+//	}
+//	m_hRecvRtpThread = ::CreateThread(NULL, 0, recv_rtp_thread, this, CREATE_SUSPENDED, NULL);
+//	ASSERT(NULL != m_hRecvRtpThread);
+//	if (NULL == m_hRecvRtpThread)
+//	{
+//		return FALSE;
+//	}
+//
+//	::ResumeThread(m_hRecvRtpThread);
+//	::ResumeThread(m_hSendRtpThread);
+//}
+
+//BOOL build_md5(const BYTE * pbData, int nDataLen, CString &strMd5Hash)
+//{
+//	HCRYPTPROV hProv;
+//	if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+//		return FALSE;
+//
+//	HCRYPTHASH hHash;
+//	if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash))
+//	{
+//		CryptReleaseContext(hProv, 0);
+//		return FALSE;
+//	}
+//
+//	if (!CryptHashData(hHash, pbData, nDataLen, 0))
+//	{
+//		CryptDestroyHash(hHash);
+//		CryptReleaseContext(hProv, 0);
+//		return FALSE;
+//	}
+//
+//	DWORD dwSize;
+//	DWORD dwLen = sizeof(dwSize);
+//	CryptGetHashParam(hHash, HP_HASHSIZE, (BYTE*)(&dwSize), &dwLen, 0);
+//
+//	BYTE* pHash = new BYTE[dwSize];
+//	dwLen = dwSize;
+//	CryptGetHashParam(hHash, HP_HASHVAL, pHash, &dwLen, 0);
+//
+//	strMd5Hash = _T("");
+//	for (DWORD i = 0; i<dwLen; i++)
+//		strMd5Hash.AppendFormat(_T("%02X"), pHash[i]);
+//	delete[] pHash;
+//
+//
+//	CryptDestroyHash(hHash);
+//	CryptReleaseContext(hProv, 0);
+//
+//	return TRUE;
+//}
+
+
+////包中添加认证
+//BOOL CSipClient::add_auth(CSipPacket *packet, const CString &username, const CString &realm,
+//	const CString &nonce, const CString &uri, REQUEST_METHOD method)
+//{
+//	if (NULL == packet)
+//		return FALSE;
+//
+//	CString auth, response, str_method;
+//	DIGEST_AUTH_PAR auth_par;
+//	switch (method)
+//	{
+//	case other_method:
+//		return FALSE;
+//		break;
+//	case SipRegister:
+//		str_method.Format(_T("REGISTER"));
+//		break;
+//	case SipInvite:
+//		str_method.Format(_T("REGISTER"));
+//		break;
+//	case SipAck:
+//		str_method.Format(_T("REGISTER"));
+//		break;
+//	case SipBye:
+//		str_method.Format(_T("REGISTER"));
+//		break;
+//	}
+//
+//
+//
+//	//计算response
+//	if (!builf_auth_response(response, username, m_password, realm, str_method, uri, nonce))
+//		return FALSE;
+//	auth_par.name = username;
+//	auth_par.nonce = nonce;
+//	auth_par.realm= realm;
+//	auth_par.response = response;
+//	auth_par.uri= uri;
+//
+//
+//
+//	auth = packet->generate_digest_auth_line(&auth_par);
+//	packet->add_entry(auth);
+//
+//	//修改via
+//	if (!packet->build_via_branch(auth))
+//		return FALSE;
+//
+//	if (!packet->modify_via_branch(auth))
+//		return FALSE;
+//
+//
+//
+//	return TRUE;
+//}
+
+//查找发送消息队列中 via_branch 相同的包。返回下标
+//int CSipClient::find_send_pack_index(const CString &via_branch)
+//{
+//	CSipPacketInfo send_pack_info;
+//	int index = -1;
+//
+//	if (via_branch.IsEmpty())
+//		return index;
+//
+//	m_send_lock.Lock();
+//	for (int i = 0; i < m_send_packet_arr.GetSize(); i++)
+//	{
+//		if (send_pack_info.from_packet(m_send_packet_arr[i]))
+//		{
+//			if (send_pack_info.get_via().branch == via_branch)
+//			{
+//				index = i;
+//				break;
+//			}
+//		}
+//	}
+//	m_send_lock.Unlock();
+//
+//	return index;
+//
+//}
+
+//CSipPacketInfo* CSipClient::find_send_pack_index(int &index, const CString &via_branch)
+//{
+//	if (via_branch.IsEmpty())
+//		return NULL;
+//
+//	BOOL find = FALSE;
+//	CSipPacketInfo *info = new CSipPacketInfo();
+//	if (NULL == info)
+//		return info;
+//
+//	m_send_lock.Lock();
+//	for (int i = 0; i < m_send_packet_arr.GetSize(); i++)
+//	{
+//		if (info->from_packet(m_send_packet_arr[i]))
+//		{
+//			if (info->get_via().branch == via_branch)
+//			{
+//				index = i;
+//				find = TRUE;
+//				break;
+//			}
+//		}
+//	}
+//	m_send_lock.Unlock();
+//
+//	if (!find)
+//	{
+//		index = -1;
+//		if (NULL != info)
+//		{
+//			delete info;
+//			info = NULL;
+//		}
+//	}
+//
+//
+//	return  info;
+//}
+
+
+//BOOL CSipClient::build_ack_message(CSipPacket & packet, CSipPacketInfo * status_info)
+//{
+//	if (NULL == status_info)
+//		return FALSE;
+//
+//
+//	//REQUEST_METHOD req_method = request_info->get_request_method();
+//	STATUS_CODE stu_code = status_info->get_status_code();
+//
+//
+//
+//	SIP_URI req_uri;
+//	if (stu_code == OK)
+//	{
+//		req_uri.user = status_info->get_contact().contact_uri.user;
+//		req_uri.host = status_info->get_contact().contact_uri.host;
+//		req_uri.port = status_info->get_contact().contact_uri.port;
+//		req_uri.rinstance = status_info->get_contact().contact_uri.rinstance;
+//	}
+//	else if (stu_code == Proxy_Authentication)
+//	{
+//		req_uri.user = status_info->get_to().to_user;
+//		req_uri.host = status_info->get_to().to_host;
+//	}
+//
+//
+//	VIA_PARAMETER via_par;
+//	via_par.sent_address = status_info->get_via().sent_address;
+//	via_par.sent_port = status_info->get_via().sent_port;
+//	if (!CSipPacket::build_via_branch(via_par.branch))
+//		return FALSE;
+//
+//	int max_forward = 0;
+//
+//	CONTACT_PARAMETER contact_par, *contact = NULL;
+//	if (stu_code == OK)
+//	{
+//		contact_par.contact_uri.user = m_user;
+//		contact_par.contact_uri.host = status_info->get_via().received_address;
+//
+//	}
+//
+//	FROM_PARAMETER for_par;
+//	for_par = status_info->get_from();
+//
+//	TO_PARAMETER to_par;
+//	to_par = status_info->get_to();
+//
+//	CSEQ_PARAMETER cseq_par;
+//	cseq_par.method = Ack;
+//	cseq_par.cseq = cseq;
+//
+//	CString call_id = status_info->get_call_id();
+//	CString auth;
+//
+//
+//	if (!packet.build_ack_packet(&req_uri, &via_par, max_forward,
+//		&for_par, &to_par, &cseq_par, call_id, NULL, auth))
+//		return FALSE;
+//
+//
+//
+//	return TRUE;
+//
+//
+//}
+
+
+//DWORD CSipClient::send_rtp_thread(LPVOID lpParam)
+//{
+//	CSipClient *pObject = (CSipClient*)lpParam;
+//	ASSERT(NULL != pObject);
+//	return pObject->do_send_rtp();
+//}
+//
+//DWORD CSipClient::send_rtp_audio_thread(LPVOID lpParam)
+//{
+//	CSipClient *pObject = (CSipClient*)lpParam;
+//	ASSERT(NULL != pObject);
+//	return pObject->do_send_rtp();
+//
+//
+//
+//	return 0;
+//}
+//
+//DWORD CSipClient::send_rtp_video_thread(LPVOID lpParam)
+//{
+//	
+//
+//
+//
+//	return 0;
+//}
+//
+//DWORD CSipClient::recv_rtp_audio_thread(LPVOID lpParam)
+//{
+//	return 0;
+//}
+//
+//DWORD CSipClient::recv_rtp_video_thread(LPVOID lpParam)
+//{
+//	return 0;
+//}
+//
+//DWORD CSipClient::do_send_audio_rtp()
+//{
+//	if (NULL == m_send_cache)
+//		return 1;
+//
+//
+//	m_send_cache->GetNextPacket()->enType
+//	
+//
+//
+//
+//
+//
+//	while ()
+//	{
+//		if (audio)
+//		{
+//
+//		}
+//	}
+//
+//
+//	return 0;
+//}
+//
+//DWORD CSipClient::do_send_video_rtp()
+//{
+//	return 0;
+//}
+//
+//DWORD CSipClient::do_recv_audio_rtp()
+//{
+//	return 0;
+//}
+//
+//DWORD CSipClient::do_recv_video_rtp()
+//{
+//	return 0;
+//}
+//
+//DWORD CSipClient::recv_rtp_thread(LPVOID lpParam)
+//{
+//	CSipClient *pObject = (CSipClient*)lpParam;
+//	ASSERT(NULL != pObject);
+//	return pObject->do_recv_rtp();
+//}
+//
+//DWORD CSipClient::do_send_rtp()
+//{
+//	int ret = 0;
+//	CRtpPacketPtr rtp_pack = NULL;
+//	CString audio_address, video_address, sdp_address;
+//	unsigned short audio_port = 0, video_port = 0;
+//	BOOL bAudio, bVideo;
+//
+//	if (NULL == m_call_info->sdp )
+//		return 1;
+//
+//	bAudio = m_call_info->sdp->get_audio_media();
+//	bVideo = m_call_info->sdp->get_video_media();
+//	audio_address = m_call_info->sdp->get_audio_address();
+//	video_address = m_call_info->sdp->get_video_address();
+//	audio_port = m_call_info->sdp->get_audio_port();
+//	video_port = m_call_info->sdp->get_video_port();
+//	sdp_address = m_call_info->sdp->get_address();
+//	if (audio_address.IsEmpty())
+//		audio_address = sdp_address;
+//	if (video_address.IsEmpty())
+//		video_address = sdp_address;
+//	
+//
+//
+//	while (m_bwork)
+//	{
+//		if (NULL != m_send_cache)
+//			rtp_pack = m_send_cache->GetNextPacket();
+//		if (rtp_pack)
+//		{
+//			if (rtp_pack->enType == audio && bAudio )
+//			{
+//				ret = m_call_info->udp_audio.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+//					audio_port, audio_address);
+//				if (ret < 0)
+//					int err = WSAGetLastError();
+//
+//			}
+//			else if (rtp_pack->enType == video && bVideo )
+//			{
+//				ret = m_call_info->udp_video.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
+//					video_port, video_address);
+//				if (ret < 0)
+//					int err = WSAGetLastError();
+//			}
+//		}
+//		else
+//		{
+//			Sleep(10);
+//		}
+//	}
+//
+//
+//
+//
+//	return 0;
+//}
+//
+//DWORD CSipClient::do_recv_rtp()
+//{
+//	int ret = 0;
+//	CString recv_addr;
+//	WORD recv_port;
+//	unsigned char *buf= new unsigned char [RTP_BUFFER];
+//	CRtpPacketPtr rtp_pack = NULL;
+//	CString audio_address, video_address, sdp_address;
+//	unsigned short audio_port = 0, video_port = 0;
+//	BOOL bAudio, bVideo;
+//
+//	if (NULL == m_call_info->sdp)
+//		return 1;
+//	bAudio = m_local_sdp->get_audio_media();
+//	bVideo = m_local_sdp->get_video_media();
+//	audio_address = m_call_info->sdp->get_audio_address();
+//	video_address = m_call_info->sdp->get_video_address();
+//	audio_port = m_call_info->sdp->get_audio_port();
+//	video_port = m_call_info->sdp->get_video_port();
+//	sdp_address = m_call_info->sdp->get_address();
+//	if (audio_address.IsEmpty())
+//		audio_address = sdp_address;
+//	if (video_address.IsEmpty())
+//		video_address = sdp_address;
+//
+//	while (m_bwork)
+//	{
+//		if (bAudio)
+//		{
+//			ret = m_call_info->udp_audio.ReceiveFrom(buf, RTP_BUFFER, recv_addr, recv_port);
+//			if (ret > 0 && recv_port == audio_port &&
+//				recv_addr.Compare(audio_address) == 0)
+//			{
+//				rtp_pack = new RTP_PACKET;
+//				memcpy(rtp_pack->szData, buf, ret);
+//				rtp_pack->usPackLen = ret;
+//				rtp_pack->enType = audio;
+//				if (m_call_info->rtp_cache)
+//					m_call_info->rtp_cache->AddPacket(rtp_pack);
+//			}
+//
+//		}
+//
+//		if (bVideo)
+//		{
+//			ret = m_call_info->udp_video.ReceiveFrom(buf, RTP_BUFFER, recv_addr, recv_port);
+//			if (ret > 0 && recv_port == video_port
+//				&& recv_addr.Compare(video_address) == 0)
+//			{
+//				rtp_pack = new RTP_PACKET;
+//				memcpy(rtp_pack->szData, buf, ret);
+//				rtp_pack->usPackLen = ret;
+//				rtp_pack->enType = video;
+//				if (m_call_info->rtp_cache)
+//					m_call_info->rtp_cache->AddPacket(rtp_pack);
+//			}
+//		}
+//	}
+//
+//
+//	delete [] buf;
+//	buf = NULL;
+//
+//	//FILE *sdp_file = fopen("sip.sdp","w+");
+//	//if (NULL == sdp_file)
+//	//	return 0;
+//	//CString str_sdp = m_sdp.to_buffer();
+//	//USES_CONVERSION;
+//	//char * sdp_buf = T2A(str_sdp);
+//	//if (NULL == sdp_buf)
+//	//	return 0;
+//	//int sdp_buf_len = str_sdp.GetLength();
+//	//int write_len = fwrite(sdp_buf, sdp_buf_len, 1, sdp_file);
+//	//fflush(sdp_file);
+//
+//	return 0;
+//}
+
+//DWORD CSipClient::do_recv_media()
+//{
+//	if (NULL == m_call_info || NULL == m_sdp)
+//		return 1;
+//
+//	int ret = 0;
+//	CString recv_addr;
+//	WORD recv_port;
+//	unsigned char *buf = new unsigned char[4096]();
+//	CRtpPacketPtr rtp_pack = NULL;
+//
+//
+//	if (!m_call_info->udp_a.EnableNonBlocking(TRUE))
+//		return 2;
+//	if (!m_call_info->udp_v.EnableNonBlocking(TRUE))
+//		return 3;
+//
+//	CString audio_addr, video_addr;
+//	WORD audio_port = 0, video_port = 0;
+//	if (m_call_info->sdp)
+//	{
+//		audio_port = m_call_info->sdp->m_usAudioPort;
+//		video_port = m_call_info->sdp->m_usVideoPort;
+//
+//		if (m_call_info->sdp->m_strAudioIP.IsEmpty())
+//			audio_addr = m_call_info->sdp->m_strAddress;
+//		else
+//			audio_addr = m_call_info->sdp->m_strAudioIP;
+//
+//		if (m_call_info->sdp->m_strVideoIP.IsEmpty())
+//			video_addr = m_call_info->sdp->m_strAddress;
+//		else
+//			video_addr = m_call_info->sdp->m_strVideoIP;
+//	}
+//
+//	while (m_bwork)
+//	{
+//		/*if (m_sdp->m_bAudioMedia )
+//		{
+//			ret = m_call_info->udp_a.ReceiveFrom(buf, 4096, recv_addr, recv_port);
+//			if (ret > 0 && recv_port == audio_port &&
+//				recv_addr.Compare(audio_addr) == 0)
+//			{
+//				rtp_pack = new RTP_PACKET();
+//				if (NULL == rtp_pack)
+//					continue;
+//				memcpy_s(rtp_pack->szData, 1500, buf, ret);
+//				rtp_pack->usPackLen = ret;
+//				rtp_pack->enType = audio;
+//				if (m_call_info->rtp_cache)
+//					m_call_info->rtp_cache->AddPacket(rtp_pack);
+//			}
+//
+//		}*/
+//
+//		if (m_sdp->m_bVideoMedia)
+//		{
+//			ret = m_call_info->udp_v.ReceiveFrom(buf, 4096, recv_addr, recv_port);
+//			if (ret > 0 && recv_port == video_port
+//				&& recv_addr.Compare(video_addr) == 0)
+//			{
+//				rtp_pack = new RTP_PACKET();
+//				memcpy_s(rtp_pack->szData, 1500, buf, ret);
+//				rtp_pack->usPackLen = ret;
+//				rtp_pack->enType = video;
+//				if (m_call_info->rtp_cache)
+//					m_call_info->rtp_cache->AddPacket(rtp_pack);
+//			}
+//		}
+//
+//
+//
+//		delete[] buf;
+//		buf = NULL;
+//
+//
+//		return 0;
+//	}
+//}
+
+
+//**************************************************
+//*功能：创建remove packet
+//*参数：需要修改的包
+//*返回：成功返回新包指针，失败返回NULL
+//**************************************************
+//CSipPacket* remove_binding(CSipPacket *packet)
+//{
+//	if (NULL == packet)
+//		return NULL;
+//
+//	CString via_branch;
+//	int cseq = 0;
+//	BOOL ret = FALSE;
+//	CSipPacket *new_packet = packet->clone_packet();
+//	if (NULL == new_packet)
+//		return NULL;
+//
+//	//修改 via branch, from tag, cseq++, 添加 expires=0
+//	if (!CSipPacket::build_via_branch(via_branch))
+//		goto end;
+//	if (!new_packet->set_via_branch(via_branch))
+//		goto end;
+//
+//	if (!CSipPacket::NewGUIDString(via_branch))
+//		goto end;
+//	if (!new_packet->set_from_tag(via_branch))
+//		goto end;
+//
+//	cseq++;
+//	if (!new_packet->set_cseq(cseq))
+//		goto end;
+//
+//	via_branch.Format(_T("Expires: 0\r\n"));
+//	if (!new_packet->add_entry(via_branch))
+//		goto end;
+//	ret = TRUE;
+//
+//end:
+//	if (!ret)
+//	{
+//		if (NULL != new_packet)
+//		{
+//			delete new_packet;
+//			new_packet = NULL;
+//		}
+//	}
+//
+//
+//	return new_packet;
+//}
+
+//计算response 构建认证字符串
+//BOOL CSipClient::build_auth_string(CString &auth_string,  CSipPacket * packet)
+//{
+//
+//	//计算认证回应
+//	DIGEST_AUTH_PAR auth_par;
+//	CString realm, nonce, response;
+//	REQUEST_METHOD method;
+//	SIP_URI uri;
+//
+//
+//	if (!get_nonce_realm(packet,nonce, realm))
+//		return FALSE;
+//	method = Register;
+//	uri.host = m_sev_addr;
+//	if (!builf_auth_response(response, m_user, m_password, realm, nonce, method, uri))
+//		return FALSE;
+//auth_par.name = m_user;
+//auth_par.nonce = nonce;
+//auth_par.realm = realm;
+//auth_par.uri.Format(_T("sip:%s"), m_sev_addr);
+//auth_par.response = response;
+//auth_string = CSipPacket::generate_digest_auth_line(&auth_par);
+//return TRUE;
+
+//构建注册认证包
+//CSipPacket auth_packet;
+//SIP_URI  request_uri;
+//VIA_PARAMETER  via_par;
+//int max_forward;
+//FROM_PARAMETER  from_par;
+//TO_PARAMETER  to_par;
+//CSEQ_PARAMETER  cseq;
+//CString  call_id;
+//CString  optional;
+////auth_packet = packet->
+//request_uri = packet_info->get_request_uri();
+//via_par = packet_info->get_via();
+//if (!auth_packet.build_via_branch(via_par.branch))
+//	return FALSE;
+//max_forward = packet_info->get_max_forwards;
+//from_par = packet_info->get_from();
+//to_par = packet_info->get_to();
+//cseq = packet_info->get_cseq();
+//call_id = packet_info->get_call_id();
+//DIGEST_AUTH_PAR auth_par;
+//auth_par.name = m_user;
+//auth_par.nonce = 
+//optional = auth_packet.generate_digest_auth_line()
+//auth_packet.build_register_packet(&request_uri, &via_par, max_forward,  &from_par,&to_par, 
+//	&cseq, call_id, auth)
+
+//}
+
+//CSipPacket* build_new_packet(CSipPacketInfo *packet_info)
+//{
+//
+//	if (NULL == packet_info)
+//		return NULL;
+//	CSipPacket *packet = new CSipPacket();
+//	if (NULL == packet)
+//		return NULL;
+//
+//
+//
+//	if (packet_info->get_type() == sip_request)
+//	{
+//		switch (packet_info->get_request_method())
+//		{
+//		case Register:
+//
+//			break;
+//		case Invite:
+//			break;
+//		case Ack:
+//			break;
+//		}
+//	}
+//	else if (packet_info->get_type() == sip_status)
+//	{
+//
+//	}
+//
+//
+//
+//
+//
+//}
+
+//构建 inv ok ack消息
+//BOOL build_invite_ack_message(CSipPacket &packet, CSipPacketInfo *status_info, int cseq, const CString &auth_string)
+//{
+//	if (NULL == status_info)
+//		return FALSE;
+//
+//
+//
+//
+//	SIP_URI req_uri;
+//	VIA_PARAMETER via_par;
+//	FROM_PARAMETER for_par;
+//	TO_PARAMETER to_par;
+//	CSEQ_PARAMETER cseq_par;
+//	CONTACT_PARAMETER con_par, *p_con = NULL;
+//
+//	CString call_id, auth_str, string_t;
+//	int max_forward = 70;
+//
+//
+//	req_uri = status_info->get_contact().contact_uri;
+//	req_uri.rinstance = status_info->get_contact().rinstance;
+//
+//	via_par.sent_address = status_info->get_via().sent_address;
+//	via_par.sent_port = status_info->get_via().sent_port;
+//	if (!CSipPacket::build_via_branch(via_par.branch))
+//		return FALSE;
+//
+//	con_par.contact_uri.user = status_info->get_from().user;
+//	con_par.contact_uri.host = status_info->get_via().received_address;
+//	con_par.contact_uri.port = status_info->get_via().recvived_port;
+//	con_par.next = NULL;
+//
+//	for_par = status_info->get_from();
+//	to_par = status_info->get_to();
+//
+//	call_id = status_info->get_call_id();
+//
+//	cseq_par.method = Ack;
+//	cseq_par.cseq = cseq;
+//
+//
+//
+//	if (!packet.build_ack_packet(&req_uri, &via_par, max_forward,
+//		&for_par, &to_par, &cseq_par, call_id, &con_par, auth_string))
+//		return FALSE;
+//
+//
+//	return TRUE;
+//}
+
+//构建 ack消息
+//BOOL build_ack_message(CSipPacket &packet, CSipPacketInfo *request_info,
+//	CSipPacketInfo *status_info, int cseq, const CString auth)
+//{
+//	if (NULL == status_info || NULL == request_info )
+//		return FALSE;
+//
+//
+//	REQUEST_PARAMETER request_par;
+//	request_par.method = Ack;
+//
+//	request_par.request_uri.user = status_info->get_contact().contact_uri.user;
+//	request_par.request_uri.host = status_info->get_contact().contact_uri.host;
+//	request_par.request_uri.port = status_info->get_contact().contact_uri.port;
+//	request_par.rinstance = status_info->get_contact().rinstance;
+//
+//
+//	VIA_PARAMETER via_par;
+//	//via_par.sent_address = status_info->get_via().sent_address;
+//	via_par.sent_address = _T("192.168.100.82");
+//	via_par.sent_port = status_info->get_via().sent_port;
+//	via_par.branch = CSipPacket::build_via_branch();
+//	if (via_par.branch.IsEmpty())
+//		return FALSE;
+//
+//	int max_forward = 70;
+//
+//	CONTACT_PARAMETER contact_par;
+//	contact_par.contact_uri.user = status_info->get_from().user;
+//	contact_par.contact_uri.host = status_info->get_via().received_address;
+//	contact_par.contact_uri.port = status_info->get_via().sent_port;
+//
+//	FROM_PARAMETER for_par;
+//	for_par = status_info->get_from();
+//
+//	TO_PARAMETER to_par;
+//	to_par = status_info->get_to();
+//
+//	CSEQ_PARAMETER cseq_par;
+//	cseq_par.method = Ack;
+//	cseq_par.cseq = cseq;
+//
+//	CString call_id = status_info->get_call_id();
+//
+//
+//
+//
+//	if (!packet.build_request_packet(request_par, via_par, for_par, to_par,
+//		call_id, cseq_par, &contact_par, auth, NULL, max_forward))
+//		return FALSE;
+//
+//
+//	//packet.
+//
+//
+//
+//	return TRUE;
+//}
 
 
 //初始化
@@ -587,9 +3118,9 @@ BOOL CSipClient::make_call(const CString & strCallName)
 //
 //	m_last_send_time = ::GetTickCount();
 //	packet_info->set_time(m_last_send_time);
-//	m_request_info_ArrLock.Lock();
+//	m_send_packet_arrLock.Lock();
 //	m_arrRequest_PackInfo.Add(packet_info);
-//	m_request_info_ArrLock.Unlock();
+//	m_send_packet_arrLock.Unlock();
 //
 //	return TRUE;
 //}
@@ -810,9 +3341,9 @@ BOOL CSipClient::make_call(const CString & strCallName)
 //		return FALSE;
 //	m_last_send_time = ::GetTickCount();
 //	packet_info->set_time(m_last_send_time);
-//	m_request_info_ArrLock.Lock();
+//	m_send_packet_arrLock.Lock();
 //	m_arrRequest_PackInfo.Add(packet_info);
-//	m_request_info_ArrLock.Unlock();
+//	m_send_packet_arrLock.Unlock();
 //	CSipPacketInfo *pack_info = new CSipPacketInfo();
 //	if (!pack_info->from_packet(&packet))
 //	{
@@ -820,9 +3351,9 @@ BOOL CSipClient::make_call(const CString & strCallName)
 //		return FALSE;
 //	}
 //	pack_info->set_time(::GetTickCount());
-//	m_request_info_ArrLock.Lock();
+//	m_send_packet_arrLock.Lock();
 //	m_arrRequest_PackInfo.Add(pack_info);
-//	m_request_info_ArrLock.Unlock();
+//	m_send_packet_arrLock.Unlock();
 //
 //	m_client_status = inviteing;
 //	return TRUE;
@@ -920,1375 +3451,6 @@ BOOL CSipClient::make_call(const CString & strCallName)
 //
 //	return 0;
 //}
-
-
-
-//sdp协商， 回复ok消息
-BOOL CSipClient::call_answer(CSipPacketInfo *packet_info)
-{
-	if (m_call_stu != INVITE_RECV || NULL == packet_info)
-		return FALSE;
-
-	CSipPacket invite_ok_packet;
-	//CSDP *sdp;
-	CString peer_addr;
-	WORD peer_port = 0;
-
-	//本地sdp
-	if (NULL == m_local_sdp)
-		return FALSE;
-
-	//保存对方sdp
-	if (NULL == m_sdp)
-	{
-		m_sdp = new CSDP();
-		if (NULL == m_sdp)
-			return FALSE;
-	}
-	*m_sdp = packet_info->m_sdp_info;
-
-
-
-
-	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
-	{
-		if (NULL == m_sock_a)
-		{
-			m_sock_a = new CNetSocket();
-			if (NULL == m_sock_a)
-				return FALSE;
-		}
-
-		if (!m_sock_a->Create(0, SOCK_DGRAM))
-			return FALSE;
-		if (!m_sock_a->GetSockName(peer_addr, peer_port))
-			return FALSE;
-		m_local_sdp->m_usAudioPort = peer_port;
-		m_local_sdp->m_strAudioIP = m_local_addr;
-
-	}
-
-	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
-	{
-		if (NULL == m_sock_v)
-		{
-			m_sock_v = new CNetSocket();
-			if (NULL == m_sock_v)
-				return FALSE;
-		}
-		if (!m_sock_v->Create(0, SOCK_DGRAM))
-			return FALSE;
-		if (!m_sock_v->GetSockName(peer_addr, peer_port))
-			return FALSE;
-		m_local_sdp->m_usVideoPort = peer_port;
-		m_local_sdp->m_strVideoIP = m_local_addr;
-
-	}
-	//m_call_info->pLocalSdp = sdp;
-
-	////call info
-	//m_call_stu = INVITE_SDP_OK;
-	//m_call_id = packet_info->get_call_id();
-	//m_contact = packet_info->get_to().to_user;
-	//if (m_call_info->pSdp->m_bAudioMedia)
-	//{
-	//	if (!m_call_info->udp_audio.Create(0, SOCK_DGRAM))
-	//		return FALSE;
-	//	if (!m_call_info->udp_audio.GetSockName(peer_addr, peer_port))
-	//		return FALSE;
-	//	m_local_sdp->m_usAudioPort = peer_port;
-	//	m_local_sdp->m_strAudioIP = m_strLocalSipAddr;
-
-	//}
-	//if (m_call_info->pSdp->m_bVideoMedia)
-	//{
-	//	if (!m_call_info->udp_video.Create(0, SOCK_DGRAM))
-	//		return FALSE;
-	//	if (!m_call_info->udp_video.GetSockName(peer_addr, peer_port))
-	//		return FALSE;
-	//	m_local_sdp->m_usVideoPort = peer_port;
-	//	m_local_sdp->m_strVideoIP = m_strLocalSipAddr;
-	//}
-
-
-/*	m_local_sdp->m_strAddress = m_strLocalSipAddr;
-	m_local_sdp->m_bAudioMedia = FALSE;
-	m_local_sdp->m_bVideoMedia = TRUE;
-	m_local_sdp->m_strVideoIP = m_strLocalSipAddr;
-	m_local_sdp->m_nVideoLoadType = 96;
-	m_local_sdp->m_strVideoRtpMap = _T("96 H264/90000");
-	m_local_sdp->m_strVideoFmtp = _T("96 packetization-mode=1;profile-level-id=4D002A;sprop-parameter-sets=Z00AKp2oHgCJ+WbgICAgQA==,aO48gA==");
-
-	*/
-
-
-	//回复ok消息
-	//REQUEST_PARAMETER req_par;
-	//if (!invite_ok_packet.build_OK_packet(req_par))
-	//	return FALSE;
-	//if (!send_packet(&invite_ok_packet))
-	//	return FALSE;
-
-
-	return TRUE;
-}
-
-
-//开启媒体传输
-//1创建socket 2打开rtp线程
-//BOOL CSipClient::start_rtp_transport()
-//{
-//	if (NULL == m_sdp && NULL == m_local_sdp)
-//		return FALSE;
-//
-//	CString peer_addr;
-//	WORD peer_port;
-//
-//	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
-//	{
-//		if (NULL == m_sock_a)
-//		{
-//			m_sock_a = new CNetSocket();
-//			if (NULL == m_sock_a)
-//				return FALSE;
-//		}
-//
-//		if (!m_sock_a->Create(0, SOCK_DGRAM))
-//			return FALSE;
-//		if (!m_sock_a->GetSockName(peer_addr, peer_port))
-//			return FALSE;
-//		m_local_sdp->m_usAudioPort = peer_port;
-//		m_local_sdp->m_strAudioIP = m_local_addr;
-//	}
-//
-//	if (m_local_sdp->m_bAudioMedia && m_sdp->m_bAudioMedia)
-//	{
-//		if (NULL == m_sock_v)
-//		{
-//			m_sock_v = new CNetSocket();
-//			if (NULL == m_sock_v)
-//				return FALSE;
-//		}
-//		if (!m_sock_v->Create(0, SOCK_DGRAM))
-//			return FALSE;
-//		if (!m_sock_v->GetSockName(peer_addr, peer_port))
-//			return FALSE;
-//		m_local_sdp->m_usVideoPort = peer_port;
-//		m_local_sdp->m_strVideoIP = m_local_addr;
-//	}
-//
-//	::ResumeThread(m_send_rtp_h);
-//	::ResumeThread(m_recv_rtp_h);
-//
-//
-//	
-//
-//	return TRUE;
-//}
-
-//BOOL CSipClient::start_rtp_transport()
-//{
-//	if (NULL == m_sdp && NULL == m_local_sdp)
-//		return FALSE;
-//
-//
-//
-//
-//
-//
-//	return 0;
-//}
-
-void CSipClient::set_coming_call_function(incoming_call_back function)
-{
-	m_incoming_call = function;
-}
-
-CRtpPacketCache * CSipClient::get_recv_cache()
-{
-	return m_recv_cache;
-}
-
-void CSipClient::set_send_cache(CRtpPacketCache * cache)
-{
-	if (NULL != cache)
-		m_send_cache = cache;
-
-	return;
-}
-
-//void CSipClient::set_recv_cache(CRtpPacketCache * cache)
-//{
-//	m_call_info->rtp_cache = cache;
-//}
-
-BOOL CSipClient::set_local_sdp(const CSDP & sdp)
-{
-	if (NULL == m_local_sdp)
-		return FALSE;
-
-	CString addr;
-	WORD port;
-
-
-	*m_local_sdp = sdp;
-	if (m_sock_a)
-	{
-		if (!m_sock_a->GetSockName(addr, port))
-			return FALSE;
-		m_local_sdp->m_usAudioPort = port;
-	}
-	if (m_sock_v)
-	{
-		if (!m_sock_v->GetSockName(addr, port))
-			return FALSE;
-		m_local_sdp->m_usVideoPort = port;
-	}
-	m_local_sdp->m_strAudioIP = m_local_addr;
-	m_local_sdp->m_strVideoIP = m_local_addr;
-
-
-
-	return TRUE;
-
-
-	//if (NULL == m_local_sdp)
-	//{
-	//	m_local_sdp = new CSDP;
-	//	if (NULL == m_local_sdp)
-	//		return FALSE;
-	//}
-	//*m_local_sdp = sdp;
-	//m_local_sdp->set_address(m_strLocalSipAddr);
-	//m_local_sdp->set_audio_address(m_strLocalSipAddr);
-	//m_local_sdp->set_video_address(m_strLocalSipAddr);
-	//return TRUE;
-	
-}
-
-//void CSipClient::coming_call_back(CSipPacketInfo *packet)
-//{
-//	//保存
-//	//call_answer(packet);
-//}
-
-
-CLIENT_STATUS CSipClient::get_client_status()
-{
-	return m_client_status;
-}
-
-CSDP CSipClient::get_sdp()
-{
-	return *m_sdp;
-}
-
-
-DWORD CSipClient::ReceiveSipThread(LPVOID lpParam)
-{
-	CSipClient *pObject = (CSipClient*)lpParam;
-	ASSERT(NULL != pObject);
-	return pObject->DoReceiveSip();
-}
-
-DWORD CSipClient::SipPacketProcessThread(LPVOID lpParam)
-{
-	CSipClient *pObject = (CSipClient*)lpParam;
-	ASSERT(NULL != pObject);
-	return pObject->DoSipPacketProcess();
-}
-
-
-//接收sip消息
-DWORD CSipClient::DoReceiveSip()
-{
-	if (NULL == m_sock)
-		return 0;
-
-
-	char * pBuffer = new char [SIP_BUF_SIZE];
-	int nCheckResult = 0, ret = 0;
-	CString strPeerIP;
-	WORD uPeerPort = 0;
-
-	while (m_bwork)
-	{
-		nCheckResult = m_sock->CheckReceive();
-		if (nCheckResult > 0)
-		{
-			ret = m_sock->ReceiveFrom(pBuffer, SIP_BUF_SIZE, strPeerIP, uPeerPort);
-			if (ret > 0 && uPeerPort == m_sev_port
-				&& strPeerIP.CompareNoCase(m_sev_addr) == 0)
-			{
-				CSipPacket *pack = new CSipPacket;
-				if (pack)
-				{
-					if (pack->from_buffer(pBuffer, ret))
-					{
-						m_recv_lock.Lock();
-						m_recv_arr.Add(pack);
-						m_recv_lock.Unlock();
-					}
-
-				}
-
-			}
-		}
-	}
-
-	delete [] pBuffer;
-
-
-	return 0;
-}
-
-DWORD CSipClient::DoSipPacketProcess()
-{
-	CSipPacket *packet = NULL;
-	DWORD proc_time = 0;
-
-
-	//循环处理消息
-	while (m_bwork)
-	{
-		m_recv_lock.Lock();
-		if (m_recv_arr.GetSize() > 0)
-		{
-			packet = m_recv_arr[0];
-			m_recv_arr.RemoveAt(0);
-		}
-		m_recv_lock.Unlock();
-
-
-		if (packet != NULL)
-		{
-			proc_sip_mess(packet);
-			delete packet;
-			packet = NULL;
-		}
-		else
-		{
-			//处理request info 队列
-			m_send_lock.Lock();
-			if (m_send_arr.GetSize() > 0)
-			{
-				packet = m_send_arr[0];
-				if (NULL != packet)
-				{
-					proc_time = ::GetTickCount();
-					if (proc_time - packet->get_send_time() > SERVER_TIMEOUT)
-					{
-						delete packet;
-						m_send_arr.RemoveAt(0);
-					}
-
-				}
-			}
-			m_send_lock.Unlock();
-			
-			Sleep(10);
-		}
-	}
-
-	return 0;
-
-}
-
-//收到invite ok的回应
-//1保存对方sdp， 2发送ack， 3开启媒体传输
-BOOL CSipClient::invite_ok_process(CSipPacketInfo *pack_info)
-{
-	if (pack_info == NULL)
-		return FALSE;
-
-
-	//保存sdp
-	if (NULL == m_sdp)
-	{
-		m_sdp = new CSDP();
-		if (NULL == m_sdp)
-			return FALSE;
-		*m_sdp = pack_info->m_sdp_info;
-	}
-
-	//send ack
-	//CSipPacket ack_pack;
-	//REQUEST_PARAMETER req;
-	//VIA_PARAMETER via;
-	//int max_forwards;
-	//FROM_PARAMETER from;
-	//TO_PARAMETER to;
-	//CString call_id;
-	//int cseq;
-
-	//cseq = pack_info->get_cseq().cseq;
-
-	//if (!ack_pack.build_ACK_packet(req, via, max_forwards, from, to, call_id, cseq))
-	//	return FALSE;
-	//if (!send_packet(&ack_pack))
-	//	return FALSE;
-
-	//开始媒体传输
-	::ResumeThread(m_send_rtp_h);
-	::ResumeThread(m_recv_rtp_h);
-
-
-	return TRUE;
-}
-
-DWORD CSipClient::send_media_thread(LPVOID lpParam)
-{
-	CSipClient *pObject = (CSipClient*)lpParam;
-	ASSERT(NULL != pObject);
-	return pObject->do_send_media();
-}
-
-DWORD CSipClient::recv_media_thread(LPVOID lpParam)
-{
-	CSipClient *pObject = (CSipClient*)lpParam;
-	ASSERT(NULL != pObject);
-	return pObject->do_recv_media();
-}
-
-DWORD CSipClient::do_send_media()
-{
-	if (NULL == m_local_sdp || NULL == m_sdp)
-		return 1;
-
-	CRtpPacketPtr rtp_pack = NULL;
-
-	while (m_bwork)
-	{
-		if (NULL != m_send_cache)
-			rtp_pack = m_send_cache->GetNextPacket();
-
-		if (rtp_pack)
-		{
-			if (rtp_pack->enType == audio && m_sdp->m_bAudioMedia)
-			{
-				if (NULL != m_sock_a)
-					m_sock_a->SendTo(rtp_pack->szData, rtp_pack->usPackLen,
-						m_sdp->m_usAudioPort, m_sdp->m_strAudioIP);
-			}
-			else if (rtp_pack->enType == video && m_sdp->m_bVideoMedia)
-			{
-				if (NULL != m_sock_v)
-					m_sock_v->SendTo(rtp_pack->szData, rtp_pack->usPackLen,
-						m_sdp->m_usVideoPort, m_sdp->m_strVideoIP);
-				//if (ret < 0)
-				//	int err = WSAGetLastError();
-			}
-		}
-		else
-		{
-			Sleep(10);
-		}
-	}
-
-	return 0;
-}
-
-DWORD CSipClient::do_recv_media()
-{
-	if (NULL == m_local_sdp || NULL == m_sdp)
-		return 1;
-
-	int ret = 0;
-	CString recv_addr;
-	WORD recv_port;
-	unsigned char *buf = new unsigned char[4096];
-	CRtpPacketPtr rtp_pack = NULL;
-
-	while (m_bwork)
-	{
-		if (m_local_sdp->m_bAudioMedia && NULL != m_sock_a )
-		{
-			ret = m_sock_a->ReceiveFrom(buf, 4096, recv_addr, recv_port);
-			if (ret > 0 && recv_port == m_sdp->m_usAudioPort &&
-				recv_addr.Compare(m_sdp->m_strAudioIP) == 0)
-			{
-				rtp_pack = new RTP_PACKET();
-				if (NULL == rtp_pack)
-					continue;
-				memcpy_s(rtp_pack->szData, 1500, buf, ret);
-				rtp_pack->usPackLen = ret;
-				rtp_pack->enType = audio;
-				if (m_recv_cache)
-					m_recv_cache->AddPacket(rtp_pack);
-			}
-
-		}
-
-		if (m_local_sdp->m_bVideoMedia && NULL != m_sock_v)
-		{
-			ret = m_sock_v->ReceiveFrom(buf, 4096, recv_addr, recv_port);
-			if (ret > 0 && recv_port == m_sdp->m_usVideoPort
-				&& recv_addr.Compare(m_sdp->m_strVideoIP) == 0)
-			{
-				rtp_pack = new RTP_PACKET;
-				memcpy_s(rtp_pack->szData, 1500, buf, ret);
-				rtp_pack->usPackLen = ret;
-				rtp_pack->enType = video;
-				if (m_recv_cache)
-					m_recv_cache->AddPacket(rtp_pack);
-			}
-		}
-	}
-
-
-	delete[] buf;
-	buf = NULL;
-
-
-	return 0;
-}
-
-//查找packet中是否含有sdp， 如果有返回TRUE，并返回sdp
-//BOOL find_sdp(CSipPacket *packet, CSDP &sdp)
-//{
-//	if (NULL == packet)
-//		return FALSE;
-//
-//	//查找content-type字段
-//	CSDP new_sdp;
-//	BOOL find_sdp = FALSE;
-//	int i = 0, content_len = 0;
-//	char value[128] = { 0 }, *sdp_falg = NULL, *sdp_buf = NULL;
-//
-//	char *data = (char *)packet->get_data();
-//	if (NULL == data)
-//		return FALSE;
-//	char *content = strstr(data, "Content-Type");
-//	if (NULL == content)
-//		return FALSE;
-//	content += strlen("Content-Type: ");
-//	while (content[i]!='\r')
-//	{
-//		value[i] = content[i];
-//		i++;
-//	}
-//	if (strcmp(value, "application/sdp") != 0)
-//		return FALSE;
-//	//查找sdp位置
-//	sdp_falg = strstr(data, "\r\n\r\nv=");
-//	if (NULL == sdp_falg)
-//		return FALSE;
-//
-//	//获取content-length长度
-//	content = strstr(data, "Content-Length");
-//	if (NULL == content)
-//		return FALSE;
-//	content += strlen("Content-Length:");
-//	i = 0;
-//	while (content[i]!='\r')
-//	{
-//		if (content[i] >= 48 && content[i] <= 57)
-//			content_len = content_len * 10 + (content[i] - 48);
-//		i++;
-//	}
-//	if (content_len <= 0)
-//		return FALSE;
-//	//赋值
-//	if (!new_sdp.from_buffer(sdp_falg, content_len))
-//		return FALSE;
-//	sdp = new_sdp;
-//
-//	return TRUE;
-//
-//}
-
-//BOOL CSipClient::start_rtp_transport()
-//{
-//	m_hSendRtpThread = ::CreateThread(NULL, 0, send_rtp_thread, this, CREATE_SUSPENDED, NULL);
-//	ASSERT(NULL != m_hSendRtpThread);
-//	if (NULL == m_hSendRtpThread)
-//	{
-//		return FALSE;
-//	}
-//	m_hRecvRtpThread = ::CreateThread(NULL, 0, recv_rtp_thread, this, CREATE_SUSPENDED, NULL);
-//	ASSERT(NULL != m_hRecvRtpThread);
-//	if (NULL == m_hRecvRtpThread)
-//	{
-//		return FALSE;
-//	}
-//
-//	::ResumeThread(m_hRecvRtpThread);
-//	::ResumeThread(m_hSendRtpThread);
-//}
-
-
-//BOOL build_md5(const BYTE * pbData, int nDataLen, CString &strMd5Hash)
-//{
-//	HCRYPTPROV hProv;
-//	if (!CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
-//		return FALSE;
-//
-//	HCRYPTHASH hHash;
-//	if (!CryptCreateHash(hProv, CALG_MD5, 0, 0, &hHash))
-//	{
-//		CryptReleaseContext(hProv, 0);
-//		return FALSE;
-//	}
-//
-//	if (!CryptHashData(hHash, pbData, nDataLen, 0))
-//	{
-//		CryptDestroyHash(hHash);
-//		CryptReleaseContext(hProv, 0);
-//		return FALSE;
-//	}
-//
-//	DWORD dwSize;
-//	DWORD dwLen = sizeof(dwSize);
-//	CryptGetHashParam(hHash, HP_HASHSIZE, (BYTE*)(&dwSize), &dwLen, 0);
-//
-//	BYTE* pHash = new BYTE[dwSize];
-//	dwLen = dwSize;
-//	CryptGetHashParam(hHash, HP_HASHVAL, pHash, &dwLen, 0);
-//
-//	strMd5Hash = _T("");
-//	for (DWORD i = 0; i<dwLen; i++)
-//		strMd5Hash.AppendFormat(_T("%02X"), pHash[i]);
-//	delete[] pHash;
-//
-//
-//	CryptDestroyHash(hHash);
-//	CryptReleaseContext(hProv, 0);
-//
-//	return TRUE;
-//}
-
-//获取 nonce realm
-BOOL get_nonce_realm(CSipPacket *pPacket, CString &strNonce, CString &realm)
-{
-	if (NULL == pPacket)
-		return FALSE;
-
-	int nDataLen = 0, i = 0;
-	char szBuf[128] = { 0 };
-
-
-
-	unsigned char * pPacketData = pPacket->get_data();
-	if (NULL == pPacketData)
-		return FALSE;
-	nDataLen = pPacket->get_data_len();
-
-	char * pFlag = strstr((char *)pPacketData, "nonce");
-	if (NULL == pFlag)
-		return FALSE;
-	pFlag += strlen("nonce=\"");
-
-	while (i<128)
-	{
-		if (pFlag[i] == '\"' || pFlag[i] == '\r' || pFlag[i] == '\0')
-			break;
-		szBuf[i] = pFlag[i];
-		i++;
-	}
-	strNonce = szBuf;
-
-
-	pFlag = strstr((char *)pPacketData, "realm");
-	if (NULL == pFlag)
-		return FALSE;
-	pFlag += strlen("realm=\"");
-	i = 0;
-	while (i<128)
-	{
-		if (pFlag[i] == '\"' || pFlag[i] == '\r' || pFlag[i] == '\0')
-			break;
-		szBuf[i] = pFlag[i];
-		i++;
-	}
-	realm = szBuf;
-
-	return TRUE;
-}
-
-//计算摘要认证的response的值
-//注册认证方法： 1 HASH1=MD5(username:realm:password) 2 HASH2 = MD5(method:uri) 3 Response = MD5(HA1:nonce:HA2)
-BOOL builf_auth_response(CString & response, const CString &username, const CString &passwd,
-	const CString &realm, const CString &method, const CString &uri, const CString &nonce)
-{
-	char *p = NULL;
-	CString  str_temp, hash1, hash2, hash3;
-
-	str_temp.Format(_T("%s:%s:%s"), username, realm, passwd);
-	USES_CONVERSION;
-	p = T2A(str_temp);
-	if (NULL == p)
-		return FALSE;
-	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash1))
-		return FALSE;
-
-	str_temp.Format(_T("%s:%s"), method, uri);
-	p = T2A(str_temp);
-	if (NULL == p)
-		return FALSE;
-	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash2))
-		return FALSE;
-
-	str_temp.Format(_T("%s:%s:%s"), hash1, nonce, hash2);
-	p = T2A(str_temp);
-	if (NULL == p)
-		return FALSE;
-	if (!CRtspClient::build_md5((unsigned char *)p, str_temp.GetLength(), hash3))
-		return FALSE;
-
-	response = hash3;
-
-	return TRUE;
-
-
-}
-
-//在包中添加认证，并发送
-BOOL add_authenticate(CSipPacket *Packet)
-{
-	char *p = NULL;
-	CString strNonce, realm, str_temp, response;
-	CSipPacket Packet;
-
-
-	//计算response
-	if (!get_nonce_realm(Packet, strNonce, realm))
-		return FALSE;
-
-	builf_auth_response(response, m_use)
-
-	str_temp.Format
-	USES_CONVERSION;
-	T2A()
-	CRtspClient::build_md5()
-
-
-	//Packet.build_register_request()
-
-
-	return FALSE;
-}
-
-CString build_auth(const CString &username, const CString &realm,
-	const CString &nonce, const CString &uri, const CString &response)
-{
-	CString auth;
-	return auth;
-}
-
-//查找发送消息队列中 via_branch 相同的包。返回下标
-int CSipClient::find_send_pack_index(CSipPacket *pack)
-{
-	CSipPacketInfo send_pack_info, pack_info;
-	int index = -1;
-
-	if (NULL == pack)
-		return index;
-
-	if (!pack_info.from_packet(pack))
-		return index;
-	if (NULL == pack_info.m_array_via[0])
-		return index;
-
-	m_send_lock.Lock();
-	for (int i = 0; i < m_send_arr.GetSize(); i++)
-	{
-		if (!send_pack_info.from_packet(m_send_arr.GetAt(i)))
-			continue;
-
-		if (send_pack_info.m_array_via[0])
-		{
-			if (pack_info.m_array_via[0]->branch == send_pack_info.m_array_via[0]->branch)
-			{
-				index = i;
-				break;
-			}
-		}
-	}
-	m_send_lock.Unlock();
-
-	return index;
-
-}
-
-//**************************************************
-//*功能：创建remove packet
-//*参数：需要修改的包
-//*返回：成功返回新包指针，失败返回NULL
-//**************************************************
-CSipPacket* remove_binding(CSipPacket *packet)
-{
-	if (NULL == packet)
-		return NULL;
-
-	CString via_branch;
-	int cseq = 0;
-	BOOL ret = FALSE;
-	CSipPacket *new_packet = packet->clone_packet();
-	if (NULL == new_packet)
-		return NULL;
-
-	//修改 via branch, from tag, cseq++, 添加 expires=0
-	if (!CSipPacket::build_via_branch(via_branch))
-		goto end;
-	if (!new_packet->set_via_branch(via_branch))
-		goto end;
-
-	if (!CSipPacket::NewGUIDString(via_branch))
-		goto end;
-	if (!new_packet->set_from_tag(via_branch))
-		goto end;
-
-	cseq++;
-	if (!new_packet->set_cseq(cseq))
-		goto end;
-
-	via_branch.Format(_T("Expires: 0\r\n"));
-	if (!new_packet->add_entry(via_branch))
-		goto end;
-	ret = TRUE;
-
-end:
-	if (!ret)
-	{
-		if (NULL != new_packet)
-		{
-			delete new_packet;
-			new_packet = NULL;
-		}
-	}
-
-
-	return new_packet;
-}
-
-//**************************************************
-//*功能：处理sip消息主要线程
-//*参数：
-//*返回：
-//**************************************************
-void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
-{
-	if (recv_pack == NULL)
-		return;
-
-	CSipPacket *send_pack = NULL;
-	CSipPacketInfo recv_packet_info, send_packet_info;
-	BOOL find_request = FALSE, remove_request = FALSE;
-
-
-	if (!recv_packet_info.from_packet(recv_pack))
-		return;
-
-	//响应消息，需要找到对应的请求消息
-	if (recv_packet_info.m_type == sip_status)//sip响应消息
-	{
-		int find_index = 0;
-
-		m_send_lock.Lock();
-		find_index = find_send_pack_index(recv_pack);
-		if (find_index >= 0)//找到下标
-		{
-			if (!send_packet_info.from_packet(m_send_arr[find_index]))
-				return;
-			//根据请求消息，做相应处理
-			if (send_packet_info.m_method == SipRegister)//注册请求
-			{
-				if (recv_packet_info.m_status_code == 200)
-				{
-					//新的注册，需要remove binding 一次
-					if (m_remove_binding == FALSE)
-					{
-						send_pack = remove_binding(m_send_arr[find_index]);
-						if (NULL != send_pack)
-						{
-							if (!send_packet(send_pack))
-								return;
-							m_remove_binding = TRUE;
-						}
-
-					}
-					else
-					{
-						//已经remove binding过，保存contact中的user
-						if (NULL != send_packet_info.m_array_contact[0])
-						{
-							if (!send_packet_info.m_array_contact[0]->contact_uri.user.IsEmpty())
-							{
-								m_contact = send_packet_info.m_array_contact[0]->contact_uri.user;
-							}
-						}
-						m_client_status = register_ok;
-						remove_request = TRUE;
-					}
-
-					}
-				}
-				else if (recv_packet_info.m_status_code == 401)
-				{
-					//需要认证
-					if (m_auth_count < AUTH_NUMBER)
-					{
-
-
-						CString realm, nonce, uri, response;
-						if (!get_nonce_realm(recv_pack, realm, nonce))
-							return;
-						uri.Format(_T("sip:%s"), m_sev_addr);
-						if (!builf_auth_response(response, m_user, m_password, realm,
-							_T("REGISTER"), uri, nonce))
-							return;
-						//构建带认证的包
-						CSipPacket *pack = NULL;
-						CString via_branch, auth;
-						pack = m_send_arr[find_index]->clone_packet();
-						if (NULL == pack)
-							return;
-						if (!CSipPacket::build_via_branch(via_branch))
-							return;
-						if (!pack->set_via_branch(via_branch))
-							return;
-						auth.Format(_T("Authorization: Digest username=\"%s\",realm=\"%s\", nonce=\"%s\", uri=\"%s\", response=\"%s\"\r\n"),
-							m_user, realm, nonce, uri, response);
-						if (!pack->add_entry(auth))
-							return;
-
-						if (!send_packet(pack))
-							return;
-
-						m_auth_count++;
-					}
-				}
-			}
-			else if (send_packet_info.m_method == SipInvite)//邀请请求
-			{
-				if (recv_packet_info.m_status_code == 200)
-				{
-					if (m_client_status == inviteing && recv_packet_info.m_call_id == m_call_id)
-					{
-						if (invite_ok_process(&recv_packet_info))
-						{
-							m_client_status = calling;
-							remove_request = TRUE;
-						}
-						else
-							m_client_status = register_ok;
-
-					}
-				}
-			}
-		}
-		if (remove_request)
-		{
-			if (send_pack != NULL)
-			{
-				delete send_pack;
-				send_pack = NULL;
-			}
-			m_send_arr.RemoveAt(find_index);
-		}
-
-		m_send_lock.Unlock();
-	}
-
-
-
-
-
-	if (recv_packet_info.m_type == sip_request)
-	{
-		if (SipInvite == recv_packet_info.m_method)//收到来电
-		{
-			//保存sdp 发送ok
-			if (register_ok == m_client_status)
-			{
-				m_call_stu = INVITE_RECV;
-
-				if (NULL != m_incoming_call)
-					m_incoming_call(&recv_packet_info);
-			}
-		}
-		else if (SipAck == recv_packet_info.m_method)
-		{
-			//发送rtp
-			if (m_call_id == recv_packet_info.m_call_id &&
-				m_call_stu == INVITE_SDP_OK)
-			{
-				m_call_stu = INVITE_ACK_OK;
-			}
-		}
-	}
-	else if(recv_packet_info.m_type == sip_status)//sip响应消息
-	{
-
-
-
-		//VIA_PARAMETER via_par, send_via_par;
-		//if (!recv_packet_info.get_via(via_par, 0))
-		//	return;
-		//int i = 0;
-		//for (i = 0; i < m_send_arr.GetSize(); i++)
-		//{
-		//	send_pack = m_send_arr.GetAt(i);
-		//	if (NULL == send_pack)
-		//		continue;
-		//	if (!send_packet_info.from_packet(send_pack))
-		//		continue;
-		//	if (send_packet_info.get_via(send_via_par, 0))
-		//	{
-		//		if (send_via_par.branch == via_par.branch)
-		//		{
-		//			find_request = TRUE;
-		//			break;
-		//		}
-		//	}
-		//}
-		//if (find_request)
-		//{
-		//	STATUS_CODE status_code = recv_packet_info.get_status_code();
-		//	REQUEST_METHOD method = send_packet_info.get_request_para().method;
-		//	if (method  == SipRegister)
-		//	{
-		//		if (status_code == 200)
-		//		{
-		//			if (m_client_status == init_ok)
-		//			{
-		//				CONTACT_PARAMETER contact_par;
-		//				if (send_packet_info.get_contact(contact_par, 0))
-		//					m_contact_user = contact_par.contact_uri.user;
-		//				m_client_status = register_ok;
-		//				remove_request = TRUE;
-		//			}
-		//		}
-		//		else if (status_code == 401)
-		//		{
-		//			m_auth_count++;
-		//			if (m_auth_count <= 3)
-		//			{
-		//				CSipPacket pack;
-		//				CString realm, nonce, uri, response;
-		//				if (!get_nonce_realm(recv_pack, realm, nonce))
-		//					return;
-		//				uri.Format(_T("sip:%s"), m_sev_addr);
-		//				if (!builf_auth_response(response, m_user, m_password, realm,
-		//					_T("REGISTER"), uri, nonce))
-		//					return ;
-		//				if (!pack.build_REG_packet())
-		//					return;
-		//				if (!send_packet(&pack))
-		//					return;
-		//				
-		//			}
-		//		}
-		//	}
-		//	else if (method == SipInvite)
-		//	{
-		//		if (status_code == 200)
-		//		{
-		//			if (m_client_status == inviteing &&
-		//				recv_packet_info.get_call_id() == m_call_id)
-		//			{
-		//				if (invite_ok_process(&recv_packet_info))
-		//				{
-		//					m_client_status = calling;
-		//					remove_request = TRUE;
-		//				}
-		//				else
-		//					m_client_status = register_ok;
-		//				
-		//			}
-		//		}
-		//	}
-		//	if (remove_request)
-		//	{
-		//		if (send_pack != NULL)
-		//		{
-		//			delete send_pack;
-		//			send_pack = NULL;
-		//		}
-		//	}
-		//}
-		//m_send_arr.RemoveAt(i);
-		//m_send_lock.Unlock();
-
-
-	}
-
-	return;
-}
-
-//DWORD CSipClient::send_rtp_thread(LPVOID lpParam)
-//{
-//	CSipClient *pObject = (CSipClient*)lpParam;
-//	ASSERT(NULL != pObject);
-//	return pObject->do_send_rtp();
-//}
-//
-//DWORD CSipClient::send_rtp_audio_thread(LPVOID lpParam)
-//{
-//	CSipClient *pObject = (CSipClient*)lpParam;
-//	ASSERT(NULL != pObject);
-//	return pObject->do_send_rtp();
-//
-//
-//
-//	return 0;
-//}
-//
-//DWORD CSipClient::send_rtp_video_thread(LPVOID lpParam)
-//{
-//	
-//
-//
-//
-//	return 0;
-//}
-//
-//DWORD CSipClient::recv_rtp_audio_thread(LPVOID lpParam)
-//{
-//	return 0;
-//}
-//
-//DWORD CSipClient::recv_rtp_video_thread(LPVOID lpParam)
-//{
-//	return 0;
-//}
-//
-//DWORD CSipClient::do_send_audio_rtp()
-//{
-//	if (NULL == m_send_cache)
-//		return 1;
-//
-//
-//	m_send_cache->GetNextPacket()->enType
-//	
-//
-//
-//
-//
-//
-//	while ()
-//	{
-//		if (audio)
-//		{
-//
-//		}
-//	}
-//
-//
-//	return 0;
-//}
-//
-//DWORD CSipClient::do_send_video_rtp()
-//{
-//	return 0;
-//}
-//
-//DWORD CSipClient::do_recv_audio_rtp()
-//{
-//	return 0;
-//}
-//
-//DWORD CSipClient::do_recv_video_rtp()
-//{
-//	return 0;
-//}
-//
-//DWORD CSipClient::recv_rtp_thread(LPVOID lpParam)
-//{
-//	CSipClient *pObject = (CSipClient*)lpParam;
-//	ASSERT(NULL != pObject);
-//	return pObject->do_recv_rtp();
-//}
-//
-//DWORD CSipClient::do_send_rtp()
-//{
-//	int ret = 0;
-//	CRtpPacketPtr rtp_pack = NULL;
-//	CString audio_address, video_address, sdp_address;
-//	unsigned short audio_port = 0, video_port = 0;
-//	BOOL bAudio, bVideo;
-//
-//	if (NULL == m_call_info->sdp )
-//		return 1;
-//
-//	bAudio = m_call_info->sdp->get_audio_media();
-//	bVideo = m_call_info->sdp->get_video_media();
-//	audio_address = m_call_info->sdp->get_audio_address();
-//	video_address = m_call_info->sdp->get_video_address();
-//	audio_port = m_call_info->sdp->get_audio_port();
-//	video_port = m_call_info->sdp->get_video_port();
-//	sdp_address = m_call_info->sdp->get_address();
-//	if (audio_address.IsEmpty())
-//		audio_address = sdp_address;
-//	if (video_address.IsEmpty())
-//		video_address = sdp_address;
-//	
-//
-//
-//	while (m_bwork)
-//	{
-//		if (NULL != m_send_cache)
-//			rtp_pack = m_send_cache->GetNextPacket();
-//		if (rtp_pack)
-//		{
-//			if (rtp_pack->enType == audio && bAudio )
-//			{
-//				ret = m_call_info->udp_audio.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
-//					audio_port, audio_address);
-//				if (ret < 0)
-//					int err = WSAGetLastError();
-//
-//			}
-//			else if (rtp_pack->enType == video && bVideo )
-//			{
-//				ret = m_call_info->udp_video.SendTo(rtp_pack->szData, rtp_pack->usPackLen,
-//					video_port, video_address);
-//				if (ret < 0)
-//					int err = WSAGetLastError();
-//			}
-//		}
-//		else
-//		{
-//			Sleep(10);
-//		}
-//	}
-//
-//
-//
-//
-//	return 0;
-//}
-//
-//DWORD CSipClient::do_recv_rtp()
-//{
-//	int ret = 0;
-//	CString recv_addr;
-//	WORD recv_port;
-//	unsigned char *buf= new unsigned char [RTP_BUFFER];
-//	CRtpPacketPtr rtp_pack = NULL;
-//	CString audio_address, video_address, sdp_address;
-//	unsigned short audio_port = 0, video_port = 0;
-//	BOOL bAudio, bVideo;
-//
-//	if (NULL == m_call_info->sdp)
-//		return 1;
-//	bAudio = m_local_sdp->get_audio_media();
-//	bVideo = m_local_sdp->get_video_media();
-//	audio_address = m_call_info->sdp->get_audio_address();
-//	video_address = m_call_info->sdp->get_video_address();
-//	audio_port = m_call_info->sdp->get_audio_port();
-//	video_port = m_call_info->sdp->get_video_port();
-//	sdp_address = m_call_info->sdp->get_address();
-//	if (audio_address.IsEmpty())
-//		audio_address = sdp_address;
-//	if (video_address.IsEmpty())
-//		video_address = sdp_address;
-//
-//	while (m_bwork)
-//	{
-//		if (bAudio)
-//		{
-//			ret = m_call_info->udp_audio.ReceiveFrom(buf, RTP_BUFFER, recv_addr, recv_port);
-//			if (ret > 0 && recv_port == audio_port &&
-//				recv_addr.Compare(audio_address) == 0)
-//			{
-//				rtp_pack = new RTP_PACKET;
-//				memcpy(rtp_pack->szData, buf, ret);
-//				rtp_pack->usPackLen = ret;
-//				rtp_pack->enType = audio;
-//				if (m_call_info->rtp_cache)
-//					m_call_info->rtp_cache->AddPacket(rtp_pack);
-//			}
-//
-//		}
-//
-//		if (bVideo)
-//		{
-//			ret = m_call_info->udp_video.ReceiveFrom(buf, RTP_BUFFER, recv_addr, recv_port);
-//			if (ret > 0 && recv_port == video_port
-//				&& recv_addr.Compare(video_address) == 0)
-//			{
-//				rtp_pack = new RTP_PACKET;
-//				memcpy(rtp_pack->szData, buf, ret);
-//				rtp_pack->usPackLen = ret;
-//				rtp_pack->enType = video;
-//				if (m_call_info->rtp_cache)
-//					m_call_info->rtp_cache->AddPacket(rtp_pack);
-//			}
-//		}
-//	}
-//
-//
-//	delete [] buf;
-//	buf = NULL;
-//
-//	//FILE *sdp_file = fopen("sip.sdp","w+");
-//	//if (NULL == sdp_file)
-//	//	return 0;
-//	//CString str_sdp = m_sdp.to_buffer();
-//	//USES_CONVERSION;
-//	//char * sdp_buf = T2A(str_sdp);
-//	//if (NULL == sdp_buf)
-//	//	return 0;
-//	//int sdp_buf_len = str_sdp.GetLength();
-//	//int write_len = fwrite(sdp_buf, sdp_buf_len, 1, sdp_file);
-//	//fflush(sdp_file);
-//
-//	return 0;
-//}
-
-//向服务器发送sip消息
-BOOL CSipClient::send_packet(CSipPacket *pack)
-{
-	if (pack == NULL)
-		return FALSE;
-
-	int ret = 0, flag = 0;
-
-	unsigned char *p = pack->get_data();
-	int len = pack->get_data_len();
-
-	if (NULL != p)
-	{
-		while (len)
-		{
-			ret = m_sock->SendTo(p + flag, len, m_sev_port, m_sev_addr);
-			if (ret < 0)
-				return FALSE;
-			flag += ret;
-			len -= ret;
-		}
-	}
-
-
-	/*if (strData.IsEmpty())
-		return FALSE;
-
-	int flag = 0, ret = 0, data_len = 0;
-	BYTE * pbData = NULL;
-
-	pbData = new BYTE [data_len];
-	if (NULL == pbData)
-		return FALSE;
-	data_len = strData.GetLength();
-	memcpy(pbData, strData.GetBuffer(data_len), data_len);
-
-
-	while (data_len)
-	{
-		ret = m_udpSipSock.SendTo(pbData + flag, data_len, m_usServerPort, m_strSipServerAddr);
-		if (ret < 0)
-			return FALSE;
-		flag += ret;
-		data_len -= ret;
-	}*/
-
-
-	return TRUE;
-
-}
-
-
 
 //CSipPacketInfo::CSipPacketInfo()
 //{

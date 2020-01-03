@@ -1,6 +1,8 @@
 #pragma once
 #include "stdafx.h"
 
+#define RTP_PACKET_SIZE		4096
+
 typedef enum media_type
 {
 	audio,
@@ -11,7 +13,7 @@ typedef struct rtp_packet
 {
 	MEDIA_TYPE enType;
 	unsigned short usPackLen;
-	char szData[1500];
+	char szData[RTP_PACKET_SIZE];
 }RTP_PACKET;
 
 
@@ -54,9 +56,8 @@ public:
 
 	BOOL init();
 
-	//BOOL set_sps_pps(CString str_fmtp);
 
-	CRtpPacketCache* GetRtpCache();
+	//CRtpPacketCache* GetRtpCache();
 	void SetRtpCache(CRtpPacketCache *cache);
 
 	BOOL Play(const CString &fmtp, CWnd* pCWnd);
@@ -83,7 +84,6 @@ private:
 	AVPacket *m_pkt;
 	AVCodecParameters *m_codecPa;
 	HANDLE m_hDecodeThread;
-	//HANDLE m_hPlayThread;
 
 	BOOL m_bWork;
 	int m_width;

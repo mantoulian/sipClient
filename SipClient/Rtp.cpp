@@ -520,15 +520,12 @@ BOOL CRtpPlayer::init()
 
 }
 
-//BOOL CRtpPlayer::set_sps_pps(CString str_fmtp)
-//{
-//	return TRUE;
-//}
 
-CRtpPacketCache * CRtpPlayer::GetRtpCache()
-{
-	return m_RtpCache;
-}
+
+//CRtpPacketCache * CRtpPlayer::GetRtpCache()
+//{
+//	return m_RtpCache;
+//}
 
 void CRtpPlayer::SetRtpCache(CRtpPacketCache * cache)
 {
