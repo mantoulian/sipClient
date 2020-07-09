@@ -47,13 +47,13 @@ typedef struct sip_uri
 
 }SIP_URI;
 
-typedef struct request_parameter
+typedef struct stuRequestLine
 {
 	REQUEST_METHOD method;
 	SIP_URI request_uri;
 	CString rinstance;
 
-	request_parameter()
+	stuRequestLine()
 	{
 		method = Method_None;
 	}
@@ -61,30 +61,62 @@ typedef struct request_parameter
 	 CString to_string() const;
 	 BOOL from_string(const CString &string);
 
-}REQUEST_PARAMETER;
+}REQUEST_LINE;
 
-typedef struct via_parameter
+typedef struct stuHeaderVia
 {
 	CString sent_address;
 	unsigned short sent_port;
 	CString received_address;
 	unsigned short recvived_port;
 	CString branch;
-	//struct via_parameter *next;
+	//struct HEADER_VIA *next;
 
-	via_parameter()
+	stuHeaderVia()
 	{
 		sent_port = 0;
 		recvived_port = 0;
 		//next = NULL;
 	}
 
+	//void add_via(const CString &sent_address, WORD sent_port, const CString &recv_address,
+	//	WORD recv_port, const CString &branch)
+	//{
+	//	next = new struct HEADER_VIA();
+	//	if (next != NULL)
+	//	{
+	//		next->sent_address = sent_address;
+	//		next->sent_port = sent_port;
+	//		next->received_address = recv_address;
+	//		next->recvived_port = recv_port;
+	//		next->branch = branch;
+	//	}
+	//}
+	//BOOL compared_branch(struct HEADER_VIA *via)
+	//{
+	//	if (NULL == via)
+	//		return FALSE;
+	//	struct HEADER_VIA *p1, *p2;
+	//	do
+	//	{
+	//		p1 = next;
+	//		p2 = via->next;
+	//		if (branch != via->branch)
+	//		{
+	//			break;
+	//		}
+	//	} while (true)
+	//}
+
 	CString to_string() const;
 	BOOL from_string(const CString &string);
+	struct stuHeaderVia& operator=(const struct stuHeaderVia &via);
 
-}VIA_PARAMETER;
 
-typedef struct from_parameter
+}HEADER_VIA;
+
+
+typedef struct stuHeaderFrom
 {
 	CString display_user;
 	CString user;
@@ -94,9 +126,9 @@ typedef struct from_parameter
 	CString to_string() const;
 	BOOL from_string(const CString &string);
 
-}FROM_PARAMETER;
+}HEADER_FROM;
 
-typedef struct to_parameter
+typedef struct stuHeaderTo
 {
 	CString display_info;
 	CString to_user;
@@ -106,26 +138,26 @@ typedef struct to_parameter
 	CString to_string() const;
 	BOOL from_string(const CString &string);
 
-}TO_PARAMETER;
+}HEADER_TO;
 
-typedef struct contact_parameter
+typedef struct stuHeaderContact
 {
 	SIP_URI contact_uri;
 	CString rinstance;
-	//struct contact_parameter *next;
+	//struct HEADER_CONTACT *next;
 
 	CString to_string() const;
 	BOOL from_string(const CString &string);
 
-}CONTACT_PARAMETER;
+}HEADER_CONTACT;
 
-typedef struct cseq_parameter
+typedef struct stuHeaderCseq
 {
 	int cseq;
 	REQUEST_METHOD method;
 
 
-	cseq_parameter()
+	stuHeaderCseq()
 	{
 		cseq = 0;
 		method = Method_None;
@@ -135,16 +167,20 @@ typedef struct cseq_parameter
 	BOOL from_string(const CString &string);
 
 
-}CSEQ_PARAMETER;
 
-typedef struct route_parameter
+}HEADER_CSEQ;
+
+typedef struct stuHeaderRoute
 {
 	CString host;
 	CString parameter;
 
 	CString to_string()const;
 	BOOL from_string(const CString &string);
-}ROUTE_PARAMETER;
+}HEADER_ROUTE;
+
+
+typedef CTypedPtrArray<CPtrArray, HEADER_VIA*> CPtrViaArray;
 
 
 
@@ -183,12 +219,12 @@ typedef struct route_parameter
 //
 //}CONTENT_PAR;
 
-//typedef struct contact_parameter
+//typedef struct HEADER_CONTACT
 //{
 //	CONTACT_URI contact_uri;
 //	CString parameter;
-//	CONTACT_PARAMETER *next;
-//}CONTACT_PARAMETER;
+//	HEADER_CONTACT *next;
+//}HEADER_CONTACT;
 
 //typedef struct contact_uri
 //{
@@ -209,41 +245,50 @@ public:
 	CSipPacket(const CSipPacket &p);
 	int from_buffer(char * buffer, int buffer_len);
 	int get_data(BYTE *buf, int buf_size);
+	CString get_data();
 
 
-
-	BOOL build_register_request(const REQUEST_PARAMETER &request_par, const VIA_PARAMETER &via_par,
-		int max_forward, CONTACT_PARAMETER  &contact_par, const TO_PARAMETER &to_par,
-		const FROM_PARAMETER &from_par, const CString &call_id, const CSEQ_PARAMETER &cseq,
+	BOOL build_register_request(const REQUEST_LINE &request_par, const CPtrViaArray &via_par,
+		int max_forward, HEADER_CONTACT  &contact_par, const HEADER_TO &to_par,
+		const HEADER_FROM &from_par, const CString &call_id, const HEADER_CSEQ &cseq,
 		const CString &auth_string, const CString &optional_att);
 
-	BOOL build_inviter_request(const REQUEST_PARAMETER &request_par, const VIA_PARAMETER &via_par,
-		int max_forward, CONTACT_PARAMETER  &contact_par, const TO_PARAMETER &to_par,
-		const FROM_PARAMETER &from_par, const CString &call_id, const CSEQ_PARAMETER &cseq,
+	BOOL build_inviter_request(const REQUEST_LINE &request_par, const CPtrViaArray &via_par,
+		int max_forward, HEADER_CONTACT  &contact_par, const HEADER_TO &to_par,
+		const HEADER_FROM &from_par, const CString &call_id, const HEADER_CSEQ &cseq,
 		const CSDP &sdp, const CString &auth_string, const CString &optional_att);
 
-	BOOL build_ack_request(const CSipPacketInfo &status_info, const REQUEST_PARAMETER &request_par,
-		const VIA_PARAMETER &via_par, int max_forward, ROUTE_PARAMETER * route,
-		CONTACT_PARAMETER  *contact_par, const TO_PARAMETER &to_par,
-		const FROM_PARAMETER &from_par, const CString &call_id, const CSEQ_PARAMETER &cseq,
+	BOOL build_ack_request(const REQUEST_LINE &request_par,
+		const CPtrViaArray &via_par, int max_forward, HEADER_ROUTE * route,
+		HEADER_CONTACT  *contact_par, const HEADER_TO &to_par,
+		const HEADER_FROM &from_par, const CString &call_id, const HEADER_CSEQ &cseq,
 		const CString &auth_string, const CString &optional_att);
 
-	BOOL build_bye_request(const REQUEST_PARAMETER &request_par, const VIA_PARAMETER &via_par,
-		int max_forward, ROUTE_PARAMETER * route, CONTACT_PARAMETER  &contact_par, const TO_PARAMETER &to_par,
-		const FROM_PARAMETER &from_par, const CString &call_id, const CSEQ_PARAMETER &cseq,
-	 const CString &optional_att);
+	BOOL build_bye_request(const REQUEST_LINE &request_par, const CPtrViaArray &via_par,
+		int max_forward, HEADER_ROUTE * route, HEADER_CONTACT  &contact_par, const HEADER_TO &to_par,
+		const HEADER_FROM &from_par, const CString &call_id, const HEADER_CSEQ &cseq,
+	 const CString &auth_string, const CString &optional_att);
 
 
-	//BOOL build_request_packet(const REQUEST_PARAMETER &request_par,
-	//	const VIA_PARAMETER &via_par, const FROM_PARAMETER &from_par, const TO_PARAMETER &to_par,
-	//	const CString &call_id, const CSEQ_PARAMETER &cseq,
-	//	/*可选属性*/CONTACT_PARAMETER  *contact_par, ROUTE_PARAMETER *route, const CString &auth_string,
+	BOOL build_status(STATUS_CODE code, const CPtrViaArray &via_par, int max_forward,
+		HEADER_ROUTE * route, HEADER_CONTACT  &contact_par, const HEADER_TO &to_par,
+		const HEADER_FROM &from_par, const CString &call_id, const HEADER_CSEQ &cseq,
+		const CString &optional_att);
+
+
+	//BOOL build_request_packet(const REQUEST_LINE &request_par,
+	//	const HEADER_VIA &via_par, const HEADER_FROM &from_par, const HEADER_TO &to_par,
+	//	const CString &call_id, const HEADER_CSEQ &cseq,
+	//	/*可选属性*/HEADER_CONTACT  *contact_par, HEADER_ROUTE *route, const CString &auth_string,
 	//	CSDP *sdp, int max_forward = 70);
 
 	static CString NewGUIDString();
 	static CString build_via_branch();
 	CString max_forward_to_string(int max_forward);
 	CString call_id_to_string(const CString call_id);
+	CString status_code_to_string(STATUS_CODE code);
+
+	BOOL add_auth(const CString &auth);
 	
 private:	
 	BYTE *m_data;
@@ -251,20 +296,20 @@ private:
 
 
 	//public:
-	//BOOL build_register_packet(SIP_URI *request_uri, VIA_PARAMETER *via_par, int max_forward,
-	//	CONTACT_PARAMETER *contact_par, FROM_PARAMETER *from_par, TO_PARAMETER *to_par,
-	//	const CString &call_id, CSEQ_PARAMETER *cseq, const CString &auth_string);
-	//BOOL build_invite_packet(SIP_URI *request_uri, VIA_PARAMETER *via_par, int max_forward, 
-	//	CONTACT_PARAMETER  *contact_par, FROM_PARAMETER *from_par, TO_PARAMETER *to_par,
-	//	const CString &call_id, CSEQ_PARAMETER *cseq,const CString &auth_string, const CString &sdp);
-	//BOOL build_ack_packet(SIP_URI * request_uri, VIA_PARAMETER * via_par, int max_forward,
-	//	CONTACT_PARAMETER *con_par, FROM_PARAMETER * from_par, TO_PARAMETER * to_par,
-	//	const CString & call_id, CSEQ_PARAMETER * cseq, const CString & auth_str);
+	//BOOL build_register_packet(SIP_URI *request_uri, HEADER_VIA *via_par, int max_forward,
+	//	HEADER_CONTACT *contact_par, HEADER_FROM *from_par, HEADER_TO *to_par,
+	//	const CString &call_id, HEADER_CSEQ *cseq, const CString &auth_string);
+	//BOOL build_invite_packet(SIP_URI *request_uri, HEADER_VIA *via_par, int max_forward, 
+	//	HEADER_CONTACT  *contact_par, HEADER_FROM *from_par, HEADER_TO *to_par,
+	//	const CString &call_id, HEADER_CSEQ *cseq,const CString &auth_string, const CString &sdp);
+	//BOOL build_ack_packet(SIP_URI * request_uri, HEADER_VIA * via_par, int max_forward,
+	//	HEADER_CONTACT *con_par, HEADER_FROM * from_par, HEADER_TO * to_par,
+	//	const CString & call_id, HEADER_CSEQ * cseq, const CString & auth_str);
 	//BOOL modify_tag_value(TAG_KEY key, CString value);
 	//BOOL modify_via_branch(const CString &branch);
 	//BOOL modify_from_tag(const CString &tag);
 	//BOOL modify_cseq(int cseq);
-	//BOOL add_via(VIA_PARAMETER via);
+	//BOOL add_via(HEADER_VIA via);
 	//BOOL add_entry(const CString &value);
 	//unsigned char * get_data() { return m_data; }
 	//int get_data_len() { return m_len; }
@@ -272,13 +317,13 @@ private:
 	//DWORD get_send_time() { return m_send_time; }
 	//static CString generate_status_line(STATUS_CODE status_parameter);
 	//static CString generate_request_line(REQUEST_METHOD method, SIP_URI *request_uri);
-	//static CString generate_via_line(VIA_PARAMETER *via_parameter);
-	//static CString generate_from_line(FROM_PARAMETER *from_parameter);
-	//static CString generate_to_line(TO_PARAMETER *to_parameter);
-	//static CString generate_contact_line(CONTACT_PARAMETER *contact_parameter);
+	//static CString generate_via_line(HEADER_VIA *HEADER_VIA);
+	//static CString generate_from_line(HEADER_FROM *HEADER_FROM);
+	//static CString generate_to_line(HEADER_TO *HEADER_TO);
+	//static CString generate_contact_line(HEADER_CONTACT *HEADER_CONTACT);
 	//static CString generate_max_forwards_line(int max_forwards);
 	//static CString generate_callid_line(const CString &call_id);
-	//static CString generate_cseq_line( CSEQ_PARAMETER *cseq_parameter);
+	//static CString generate_cseq_line( HEADER_CSEQ *HEADER_CSEQ);
 	//static CString generate_expires_line(int expires);
 	//static CString generate_record_route_line(CString route);
 	//static CString generate_content_type_line(const CString &content_type);
@@ -294,28 +339,30 @@ public:
 	CSipPacketInfo& operator=(const CSipPacketInfo &packet_info);
 
 	BOOL from_packet(CSipPacket *packet);
+	//CSipPacket to_packet();
 
 
 	//必选
-	MESSAGE_TYPE get_type();
-	REQUEST_PARAMETER get_request();
-	STATUS_CODE get_status_code();
-	VIA_PARAMETER get_via();
-	CString get_call_id();
-	FROM_PARAMETER get_from();
-	TO_PARAMETER get_to();
-	CSEQ_PARAMETER get_cseq();
-	int get_max_forwards();
+	MESSAGE_TYPE get_type()const;
+	REQUEST_LINE get_request()const;
+	STATUS_CODE get_status_code()const;
+	//HEADER_VIA get_via();
+	void get_via(CPtrViaArray &viaArr) const;
+	CString get_call_id()const;
+	HEADER_FROM get_from()const;
+	HEADER_TO get_to()const;
+	HEADER_CSEQ get_cseq()const;
+	int get_max_forwards()const;
 
 	//可选属性
-	CONTACT_PARAMETER get_contact();
-	ROUTE_PARAMETER get_route();
+	BOOL get_contact(HEADER_CONTACT &contact)const;
+	BOOL get_route(HEADER_ROUTE &route)const;
+	BOOL get_sdp_info(CSDP &sdp)const;
 
-	CString get_realm();
-	CString get_nonce();
-	CString get_auth();
-	CSDP get_sdp_info();
-	DWORD get_build_time();
+	CString get_realm()const;
+	CString get_nonce()const;
+	CString get_auth()const;
+	DWORD get_build_time()const;
 
 
 
@@ -323,24 +370,28 @@ protected:
 	BOOL str_to_mess_type(MESSAGE_TYPE &type, const CString string);
 	BOOL str_to_status_code(STATUS_CODE &code, const CString &string);
 	BOOL str_to_callid(CString &call_id, const CString &callid_string);
+private:
+	void free_via();
+	//void copy_via(const CPtrViaArray &via);
 
 private:
 
 	//必选
 	MESSAGE_TYPE m_type;
-	REQUEST_PARAMETER m_request_par;
+	REQUEST_LINE m_request_par;
 	STATUS_CODE m_status_code;
 
-	VIA_PARAMETER m_via;
-	int m_max_forwards;
-	FROM_PARAMETER m_from;
-	TO_PARAMETER m_to;
+	//HEADER_VIA m_via;
+	CPtrViaArray m_via_arr;
+	HEADER_FROM m_from;
+	HEADER_TO m_to;
 	CString m_call_id;
-	CSEQ_PARAMETER m_cseq;
+	HEADER_CSEQ m_cseq;
 
 	//可选
-	CONTACT_PARAMETER m_contact;
-	ROUTE_PARAMETER m_route;
+	int m_max_forwards;
+	HEADER_CONTACT *m_contact;
+	HEADER_ROUTE *m_route;
 	CString m_realm;
 	CString m_nonce;
 	CString m_auth;

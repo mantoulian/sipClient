@@ -47,4 +47,5 @@ public:
 	CEdit m_edit_local_address;
 	afx_msg void OnBnClickedButtonConnectRtsp();
 	CEdit m_edit_rtsp_address;
+	afx_msg void OnBnClickedButton_hangup();
 };

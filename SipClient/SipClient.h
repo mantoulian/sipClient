@@ -6,6 +6,7 @@
 
 typedef enum call_status
 {
+	Uninitialized,
 	INVITE_START,//发送或接收invite消息之前
 	INVITE_SEND,//发送invite消息后
 	INVITE_RECV,//收到invite消息后（来电）
@@ -18,19 +19,47 @@ typedef enum call_status
 typedef struct call_info
 {
 	CALL_STATUS sta;
+	CString call_name;
 	CString id;
 	SIP_URI contact_uri;
-	ROUTE_PARAMETER route;
-	CString invite_auth;
-	CSDP *sdp;
-	CSDP *l_sdp;
+	CSDP sdp;
+	CSDP localSdp;
 	CNetSocket udp_a;
 	CNetSocket udp_v;
 	HANDLE send_handle;
 	HANDLE recv_audio_handle;
 	HANDLE recv_video_handle;
-	CRtpPacketCache *rtp_cache;
-	CSipPacketInfo *send_request_info;
+	CRtpPacketCache rtp_cache;
+	CRtpPacketCache *local_cache;
+
+	CSipPacketInfo request_info;
+
+
+	call_info()
+	{
+		sta = Uninitialized;
+		send_handle = NULL;
+		recv_audio_handle = NULL;
+		recv_video_handle = NULL;
+		local_cache = NULL;
+	}
+
+	BOOL init(const CSDP &localSdp, const CString &localAddr,
+		WORD audioPort = 0, WORD videoPort = 0);
+
+	BOOL start_media_transport(CRtpPacketCache *sendCache);
+	//BOOL stop_media_transport();
+
+	BOOL close_call_info();
+
+private:
+	static DWORD WINAPI send_media_thread(LPVOID lpParam);
+	static DWORD WINAPI recv_audio_media_thread(LPVOID lpParam);
+	static DWORD WINAPI recv_video_media_thread(LPVOID lpParam);
+	DWORD do_send_media();
+	DWORD do_recv_video_media();
+	DWORD do_recv_audio_media();
+
 }CALL_INFO;
 
 
@@ -43,7 +72,7 @@ typedef enum client_status
 	calling,
 }CLIENT_STATUS;
 
-typedef int(*incoming_call_back)( CSipPacketInfo *packet_info);
+typedef int(*incoming_call_back)(CSipPacketInfo *packet_info);
 
 
 class AFX_EXT_CLASS CSipClient
@@ -65,7 +94,7 @@ public:
 
 	
 	void set_send_cache(CRtpPacketCache *cache);
-	CRtpPacketCache * get_recv_cache();
+	CRtpPacketCache* get_recv_cache();
 
 	void set_coming_call_function(incoming_call_back function);
 	CLIENT_STATUS get_client_status();
@@ -76,32 +105,33 @@ public:
 
 protected:
 	BOOL build_register_message(CSipPacket &packet, const CString &auth, const CString &optional);
-	BOOL build_invite_message(CSipPacket &packet, const CString &call_name, const CSDP &sdp, const CString &auth, const CString &optiona);
-	BOOL build_BYE_packet(CSipPacket &packet, CSipPacketInfo *status_info);
+	BOOL build_invite_message(CSipPacket &packet, const CString &call_name, const CSDP &sdp,
+		const CString &auth, const CString &optiona);
+	BOOL build_ack_message(CSipPacket &packet, CSipPacketInfo *request_info);
+	BOOL build_bye_message(CSipPacket &packet);
 	BOOL send_packet(CSipPacket *packet);
 	CString build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacketInfo * status_info);
-	//CString get_self_sip_uri();
 private:
 	static DWORD WINAPI ReceiveSipThread(LPVOID lpParam);
 	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
 	DWORD DoReceiveSip();
 	DWORD DoSipPacketProcess();
 	void proc_sip_mess(CSipPacket *sipMess);//解析收到的sip消息
-	BOOL build_ack_message(CSipPacket &packet, CSipPacketInfo *request_info);
-
-	void free_call_info();
-
-
-	static DWORD WINAPI send_media_thread(LPVOID lpParam);
-	DWORD do_send_media();
-	static DWORD WINAPI recv_audio_media_thread(LPVOID lpParam);
-	static DWORD WINAPI recv_video_media_thread(LPVOID lpParam);
-	DWORD do_recv_video_media();
-	DWORD do_recv_audio_media();
+	
 
 
 
-	int find_send_pack_index(const CString &via_branch);
+	//void proc_status_invite_ok();
+	//void proc_status_invite_proxy_auth();
+	//void proc_status_bye_ok(CSipPacketInfo *staInfo);
+	//void proc_request_invite();
+
+	void proc_invite_proxy_auth(CSipPacketInfo *status_inv);
+	void proc_invite_request(CSipPacketInfo *inv_request);
+	void proc_intite_status_ok(CSipPacketInfo *inv_status);
+
+
+	BOOL compare_packet(const CSipPacketInfo &request, const CSipPacketInfo &status);
 
 
 private:
@@ -132,15 +162,15 @@ private:
 	//sip
 	int m_reg_cseq;
 	int m_inv_cseq;
-	int m_ack_cseq;
-	CString m_call_id;
+	//int m_ack_cseq;
+	//CString m_call_id;
 
-	int m_auth_count; //认证次数
+	//int m_auth_count; //认证次数
 	//clinet
 	CLIENT_STATUS m_client_status;
 	BOOL m_bwork;
 	incoming_call_back m_incoming_call;
-	CSDP *m_sdp;
+	CSDP m_sdp;
 	CALL_INFO *m_call_info;
 };
 

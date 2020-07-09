@@ -3,18 +3,36 @@
 
 #define RTP_PACKET_SIZE		4096
 
-typedef enum media_type
-{
-	audio,
-	video
-}MEDIA_TYPE;
+//typedef enum media_type
+//{
+//	audio,
+//	video
+//}MEDIA_TYPE;
 
 typedef struct rtp_packet
 {
-	MEDIA_TYPE enType;
-	unsigned short usPackLen;
-	char szData[RTP_PACKET_SIZE];
+	//MEDIA_TYPE enType;
+	WORD usPackLen;
+	//char szData[RTP_PACKET_SIZE];
+	BYTE *pData;
 }RTP_PACKET;
+
+class AFX_EXT_CLASS CRtpPacket
+{
+public:
+	CRtpPacket();
+	CRtpPacket(WORD usSize);
+
+	//CRtpPacket(MEDIA_TYPE type, WORD usSize);
+
+	virtual ~CRtpPacket();
+
+
+private:
+	//MEDIA_TYPE m_enType;
+	WORD m_usPackLen;
+	BYTE *m_pData;
+};
 
 
 
@@ -58,7 +76,7 @@ public:
 
 
 	//CRtpPacketCache* GetRtpCache();
-	void SetRtpCache(CRtpPacketCache *cache);
+	BOOL SetRtpCache(CRtpPacketCache *cache);
 
 	BOOL Play(const CString &fmtp, CWnd* pCWnd);
 

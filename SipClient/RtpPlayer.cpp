@@ -19,14 +19,14 @@ typedef struct fu_indicator
 } FU_INDICATOR; // 1 BYTE 
 
 
-//FU header
-/*
-+---------------+
-|0|1|2|3|4|5|6|7|
-+-+-+-+-+-+-+-+-+
-|S|E|R|  Type   |
-+---------------+
-*/
+				//FU header
+				/*
+				+---------------+
+				|0|1|2|3|4|5|6|7|
+				+-+-+-+-+-+-+-+-+
+				|S|E|R|  Type   |
+				+---------------+
+				*/
 typedef struct fu_header
 {
 	unsigned char TYPE : 5;
@@ -35,108 +35,108 @@ typedef struct fu_header
 	unsigned char S : 1;
 } FU_HEADER;   // 1 BYTES 
 
-//unsigned char * base64 = (unsigned char *)"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-//
-//CString CEncode::base64_encode(CString src, int srclen)
-//{
-//	int n, buflen, i, j;
-//	static unsigned char *dst;
-//	CString buf = src;
-//	buflen = n = srclen;
-//	dst = (unsigned char*)malloc(buflen / 3 * 4 + 3);
-//	memset(dst, 0, buflen / 3 * 4 + 3);
-//	for (i = 0, j = 0; i <= buflen - 3; i += 3, j += 4) {
-//		dst[j] = (buf[i] & 0xFC) >> 2;
-//		dst[j + 1] = ((buf[i] & 0x03) << 4) + ((buf[i + 1] & 0xF0) >> 4);
-//		dst[j + 2] = ((buf[i + 1] & 0x0F) << 2) + ((buf[i + 2] & 0xC0) >> 6);
-//		dst[j + 3] = buf[i + 2] & 0x3F;
-//	}
-//	if (n % 3 == 1) {
-//		dst[j] = (buf[i] & 0xFC) >> 2;
-//		dst[j + 1] = ((buf[i] & 0x03) << 4);
-//		dst[j + 2] = 64;
-//		dst[j + 3] = 64;
-//		j += 4;
-//	}
-//	else if (n % 3 == 2) {
-//		dst[j] = (buf[i] & 0xFC) >> 2;
-//		dst[j + 1] = ((buf[i] & 0x03) << 4) + ((buf[i + 1] & 0xF0) >> 4);
-//		dst[j + 2] = ((buf[i + 1] & 0x0F) << 2);
-//		dst[j + 3] = 64;
-//		j += 4;
-//	}
-//	for (i = 0; i<j; i++) /* map 6 bit value to base64 ASCII character */
-//		dst[i] = base64[(int)dst[i]];
-//	dst[j] = 0;
-//	return CString(dst);
-//}
+			   //unsigned char * base64 = (unsigned char *)"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+			   //
+			   //CString CEncode::base64_encode(CString src, int srclen)
+			   //{
+			   //	int n, buflen, i, j;
+			   //	static unsigned char *dst;
+			   //	CString buf = src;
+			   //	buflen = n = srclen;
+			   //	dst = (unsigned char*)malloc(buflen / 3 * 4 + 3);
+			   //	memset(dst, 0, buflen / 3 * 4 + 3);
+			   //	for (i = 0, j = 0; i <= buflen - 3; i += 3, j += 4) {
+			   //		dst[j] = (buf[i] & 0xFC) >> 2;
+			   //		dst[j + 1] = ((buf[i] & 0x03) << 4) + ((buf[i + 1] & 0xF0) >> 4);
+			   //		dst[j + 2] = ((buf[i + 1] & 0x0F) << 2) + ((buf[i + 2] & 0xC0) >> 6);
+			   //		dst[j + 3] = buf[i + 2] & 0x3F;
+			   //	}
+			   //	if (n % 3 == 1) {
+			   //		dst[j] = (buf[i] & 0xFC) >> 2;
+			   //		dst[j + 1] = ((buf[i] & 0x03) << 4);
+			   //		dst[j + 2] = 64;
+			   //		dst[j + 3] = 64;
+			   //		j += 4;
+			   //	}
+			   //	else if (n % 3 == 2) {
+			   //		dst[j] = (buf[i] & 0xFC) >> 2;
+			   //		dst[j + 1] = ((buf[i] & 0x03) << 4) + ((buf[i + 1] & 0xF0) >> 4);
+			   //		dst[j + 2] = ((buf[i + 1] & 0x0F) << 2);
+			   //		dst[j + 3] = 64;
+			   //		j += 4;
+			   //	}
+			   //	for (i = 0; i<j; i++) /* map 6 bit value to base64 ASCII character */
+			   //		dst[i] = base64[(int)dst[i]];
+			   //	dst[j] = 0;
+			   //	return CString(dst);
+			   //}
 
-//解码base64
-//BOOL base64_decode(char *szCode, int nCodeLen, char *szDeCode, int *nDecodeLen)
-//{
-//	if (szCode == NULL || szDeCode == NULL)
-//	{
-//		return false;
-//	}
-//
-//
-//
-//	//根据base64表，以字符找到对应的十进制数据    
-//	int table[] = { 0,0,0,0,0,0,0,0,0,0,0,0,
-//		0,0,0,0,0,0,0,0,0,0,0,0,
-//		0,0,0,0,0,0,0,0,0,0,0,0,
-//		0,0,0,0,0,0,0,62,0,0,0,
-//		63,52,53,54,55,56,57,58,
-//		59,60,61,0,0,0,0,0,0,0,0,
-//		1,2,3,4,5,6,7,8,9,10,11,12,
-//		13,14,15,16,17,18,19,20,21,
-//		22,23,24,25,0,0,0,0,0,0,26,
-//		27,28,29,30,31,32,33,34,35,
-//		36,37,38,39,40,41,42,43,44,
-//		45,46,47,48,49,50,51
-//	};
-//	long len;
-//	long str_len;
-//	//unsigned char *res;
-//	int i, j;
-//
-//	//计算解码后的字符串长度    
-//	len = nCodeLen;
-//	//判断编码后的字符串后是否有=    
-//	if (strstr(szCode, "=="))
-//		str_len = len / 4 * 3 - 2;
-//	else if (strstr(szCode, "="))
-//		str_len = len / 4 * 3 - 1;
-//	else
-//		str_len = len / 4 * 3;
-//
-//	*nDecodeLen = str_len;
-//	//res = malloc(sizeof(unsigned char)*str_len + 1);
-//	//res[str_len] = '\0';
-//
-//	//以4个字符为一位进行解码    
-//	for (i = 0, j = 0; i < len - 2; j += 3, i += 4)
-//	{
-//		//取出第一个字符对应base64表的十进制数的前6位与第二个字符对应base64表的十进制数的后2位进行组合    
-//		szDeCode[j] = ((unsigned char)table[szCode[i]]) << 2 | (((unsigned char)table[szCode[i + 1]]) >> 4);
-//		//取出第二个字符对应base64表的十进制数的后4位与第三个字符对应bas464表的十进制数的后4位进行组合    
-//		szDeCode[j + 1] = (((unsigned char)table[szCode[i + 1]]) << 4) | (((unsigned char)table[szCode[i + 2]]) >> 2);
-//		//取出第三个字符对应base64表的十进制数的后2位与第4个字符进行组合    
-//		szDeCode[j + 2] = (((unsigned char)table[szCode[i + 2]]) << 6) | ((unsigned char)table[szCode[i + 3]]);
-//	}
-//
-//	return true;
-//
-//}
+			   //解码base64
+			   //BOOL base64_decode(char *szCode, int nCodeLen, char *szDeCode, int *nDecodeLen)
+			   //{
+			   //	if (szCode == NULL || szDeCode == NULL)
+			   //	{
+			   //		return false;
+			   //	}
+			   //
+			   //
+			   //
+			   //	//根据base64表，以字符找到对应的十进制数据    
+			   //	int table[] = { 0,0,0,0,0,0,0,0,0,0,0,0,
+			   //		0,0,0,0,0,0,0,0,0,0,0,0,
+			   //		0,0,0,0,0,0,0,0,0,0,0,0,
+			   //		0,0,0,0,0,0,0,62,0,0,0,
+			   //		63,52,53,54,55,56,57,58,
+			   //		59,60,61,0,0,0,0,0,0,0,0,
+			   //		1,2,3,4,5,6,7,8,9,10,11,12,
+			   //		13,14,15,16,17,18,19,20,21,
+			   //		22,23,24,25,0,0,0,0,0,0,26,
+			   //		27,28,29,30,31,32,33,34,35,
+			   //		36,37,38,39,40,41,42,43,44,
+			   //		45,46,47,48,49,50,51
+			   //	};
+			   //	long len;
+			   //	long str_len;
+			   //	//unsigned char *res;
+			   //	int i, j;
+			   //
+			   //	//计算解码后的字符串长度    
+			   //	len = nCodeLen;
+			   //	//判断编码后的字符串后是否有=    
+			   //	if (strstr(szCode, "=="))
+			   //		str_len = len / 4 * 3 - 2;
+			   //	else if (strstr(szCode, "="))
+			   //		str_len = len / 4 * 3 - 1;
+			   //	else
+			   //		str_len = len / 4 * 3;
+			   //
+			   //	*nDecodeLen = str_len;
+			   //	//res = malloc(sizeof(unsigned char)*str_len + 1);
+			   //	//res[str_len] = '\0';
+			   //
+			   //	//以4个字符为一位进行解码    
+			   //	for (i = 0, j = 0; i < len - 2; j += 3, i += 4)
+			   //	{
+			   //		//取出第一个字符对应base64表的十进制数的前6位与第二个字符对应base64表的十进制数的后2位进行组合    
+			   //		szDeCode[j] = ((unsigned char)table[szCode[i]]) << 2 | (((unsigned char)table[szCode[i + 1]]) >> 4);
+			   //		//取出第二个字符对应base64表的十进制数的后4位与第三个字符对应bas464表的十进制数的后4位进行组合    
+			   //		szDeCode[j + 1] = (((unsigned char)table[szCode[i + 1]]) << 4) | (((unsigned char)table[szCode[i + 2]]) >> 2);
+			   //		//取出第三个字符对应base64表的十进制数的后2位与第4个字符进行组合    
+			   //		szDeCode[j + 2] = (((unsigned char)table[szCode[i + 2]]) << 6) | ((unsigned char)table[szCode[i + 3]]);
+			   //	}
+			   //
+			   //	return true;
+			   //
+			   //}
 
-//从fmtp中获取sps pps
-CString get_sps_pps(unsigned char * fmtp)
+			   //从fmtp中获取sps pps
+BOOL Get_sps_pps_From_Fmtp(unsigned char * fmtp, unsigned char *sps_pps, int &sps_pps_len)
 {
-	CString  strSpsPps;
 
-	if (fmtp == NULL)
-		return strSpsPps;
-
+	if (fmtp == NULL || sps_pps == NULL)
+	{
+		return false;
+	}
 
 	char *szTemp = NULL;
 	char szCodeSPS[128] = { 0 }, szCodePPS[128] = { 0 };
@@ -149,7 +149,9 @@ CString get_sps_pps(unsigned char * fmtp)
 
 	szTemp = strstr((char *)fmtp, "sprop-parameter-sets");
 	if (szTemp == NULL)
-		return strSpsPps;
+	{
+		return false;
+	}
 
 	szTemp += strlen("sprop-parameter-sets=");
 	while (*szTemp != ',')//逗号前面的内容为sps
@@ -185,13 +187,11 @@ CString get_sps_pps(unsigned char * fmtp)
 		num += nDecodePpsLen;
 	}
 
-	//memcpy(sps_pps, szSpsPps, num);
-	//sps_pps_len = num;
-
-	strSpsPps = szSpsPps;
+	memcpy(sps_pps, szSpsPps, num);
+	sps_pps_len = num;
 
 
-	return strSpsPps;
+	return true;
 }
 
 //rtp转h264
@@ -383,7 +383,7 @@ static BOOL decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, CWnd*
 			frame->width, frame->height, pImageData, &m_bmpMapInfo, DIB_RGB_COLORS, SRCCOPY);
 
 		//4清理
-		delete [] pImageData;
+		delete[] pImageData;
 
 		////解码一帧完成，拷贝数据
 		// f = av_frame_alloc();
@@ -527,7 +527,7 @@ BOOL CRtpPlayer::init()
 //	return m_RtpCache;
 //}
 
-BOOL CRtpPlayer::SetRtpCache(CRtpPacketCache * cache)
+void CRtpPlayer::SetRtpCache(CRtpPacketCache * cache)
 {
 	if (NULL != cache)
 		m_RtpCache = cache;
@@ -541,7 +541,6 @@ BOOL CRtpPlayer::Play(const CString &fmtp, CWnd * pCWnd)
 	char *pFmtp = NULL;
 	char sps_pps[512] = { 0 };
 	int sps_pps_len = 0, ret = 0;
-	CString strSPS_PPS;
 
 	USES_CONVERSION;
 	pFmtp = T2A(fmtp);
@@ -549,29 +548,21 @@ BOOL CRtpPlayer::Play(const CString &fmtp, CWnd * pCWnd)
 		return FALSE;
 
 	//从sdp中的fmtp中获取sps pps
-	strSPS_PPS = get_sps_pps((unsigned char *)pFmtp);
-	if (strSPS_PPS.IsEmpty())
-		return FALSE;
-
-	
-	//设置到ffmpeg
-	USES_CONVERSION;
-	pFmtp = T2A(strSPS_PPS);
-	if (pFmtp == NULL)
-		return FALSE;
-	sps_pps_len = strSPS_PPS.GetLength();
-	m_codecPa->extradata_size = sps_pps_len;
-	m_codecPa->extradata = (uint8_t*)av_malloc(sps_pps_len + AV_INPUT_BUFFER_PADDING_SIZE);
-	memcpy(m_codecPa->extradata, pFmtp, sps_pps_len);
-	ret = avcodec_parameters_to_context(m_c, m_codecPa);
-	if (ret != 0)
-		return FALSE;
-	if (avcodec_open2(m_c, m_codec, NULL) < 0)
-		return FALSE;
-	m_width = m_c->width;
-	m_height = m_c->height;
-	m_sps_pps_ok = TRUE;
-	
+	if (Get_sps_pps_From_Fmtp((unsigned char *)pFmtp, (unsigned char *)sps_pps, sps_pps_len))
+	{
+		//设置到ffmpeg
+		m_codecPa->extradata_size = sps_pps_len;
+		m_codecPa->extradata = (uint8_t*)av_malloc(sps_pps_len + AV_INPUT_BUFFER_PADDING_SIZE);
+		memcpy(m_codecPa->extradata, sps_pps, sps_pps_len);
+		ret = avcodec_parameters_to_context(m_c, m_codecPa);
+		if (ret != 0)
+			return FALSE;
+		if (avcodec_open2(m_c, m_codec, NULL) < 0)
+			return FALSE;
+		m_width = m_c->width;
+		m_height = m_c->height;
+		m_sps_pps_ok = TRUE;
+	}
 
 	m_pWnd = pCWnd;
 	::ResumeThread(m_hDecodeThread);
@@ -628,14 +619,14 @@ DWORD CRtpPlayer::DoDecode()
 		else
 		{
 			//解码视频
-			//if (pack->enType == video)
-			//{
+			if (pack->enType == video)
+			{
 				//提取rtp中的视频流
-				if (!rtpPackToH264((char *)pack->pData, pack->usPackLen, buf, &buf_len))
+				if (!rtpPackToH264(pack->szData, pack->usPackLen, buf, &buf_len))
 					continue;
 				if (FALSE == m_sps_pps_ok)//sdp中没有sps pps，需要在h264流中获取
 				{
-					if ((buf[4]&0x1f) == 7)//sps
+					if ((buf[4] & 0x1f) == 7)//sps
 					{
 						memset(sps_pps, 0, SPS_PPS_SIZE);
 						sps_pps_len = 0;
@@ -643,7 +634,7 @@ DWORD CRtpPlayer::DoDecode()
 						sps_pps_len += buf_len;
 						continue;
 					}
-					else if ((buf[4]&0x1f) == 8)//pps
+					else if ((buf[4] & 0x1f) == 8)//pps
 					{
 						memcpy(sps_pps + sps_pps_len, buf, buf_len);
 						sps_pps_len += buf_len;
@@ -679,7 +670,7 @@ DWORD CRtpPlayer::DoDecode()
 					if (m_pkt->size)
 						decode(m_c, m_frame, m_pkt, m_pWnd);
 				}
-			//}
+			}
 		}
 	}
 
@@ -692,35 +683,12 @@ DWORD CRtpPlayer::DoDecode()
 	return 0;
 }
 
-//BOOL find_sps_pps_from_rtp(char *buf, int buf_len, char *sps_pps, int sps_pps_len)
-//{
-//	if (NULL == buf|| buf_len <= 0)
-//		return FALSE;
-//
-//	
-//	
-//	return TRUE;
-//}
-
-CRtpPacket::CRtpPacket()
+BOOL find_sps_pps_from_rtp(char *buf, int buf_len, char *sps_pps, int sps_pps_len)
 {
-	//m_enType = audio;
-	m_usPackLen = 0;
-	m_pData = NULL;
-}
-
-//CRtpPacket::CRtpPacket(MEDIA_TYPE type, WORD usSize)
-CRtpPacket::CRtpPacket(WORD usSize)
-{
-	m_pData = (BYTE *)calloc(1, usSize);
-	if(m_pData)
+	if (NULL == buf || buf_len <= 0)
+		return FALSE;
 
 
-	//m_enType = type;
-	m_usPackLen = usSize;
-	m_pData = NULL;
-}
 
-CRtpPacket::~CRtpPacket()
-{
+	return TRUE;
 }

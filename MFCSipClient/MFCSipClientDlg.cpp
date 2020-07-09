@@ -81,6 +81,7 @@ BEGIN_MESSAGE_MAP(CMFCSipClientDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BUTTON_MAKE_CALL, &CMFCSipClientDlg::OnBnClickedButtonMakeCall)
 	ON_BN_CLICKED(IDC_BUTTON_INIT, &CMFCSipClientDlg::OnBnClickedButtonInit)
 	ON_BN_CLICKED(IDC_BUTTON_CONNECT_RTSP, &CMFCSipClientDlg::OnBnClickedButtonConnectRtsp)
+	ON_BN_CLICKED(IDC_BUTTON_hangup, &CMFCSipClientDlg::OnBnClickedButton_hangup)
 END_MESSAGE_MAP()
 
 
@@ -426,4 +427,20 @@ void CMFCSipClientDlg::OnBnClickedButtonConnectRtsp()
 	}
 
 	return;
+}
+
+
+void CMFCSipClientDlg::OnBnClickedButton_hangup()
+{
+	// TODO: 在此添加控件通知处理程序代码
+
+	if (theApp.m_sip_client.get_client_status() == calling)
+	{
+		if (!theApp.m_sip_client.hangup())
+		{
+			print_log(_T("结束通话失败"));
+			return;
+
+		}
+	}
 }

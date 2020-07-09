@@ -32,9 +32,9 @@ CSipPacket::CSipPacket(const CSipPacket & p)
 }
 
 //BOOL CSipPacket::build_request_packet(const REQUEST_PARAMETER & request_par,
-//	const VIA_PARAMETER & via_par, const FROM_PARAMETER & from_par,
-//	const TO_PARAMETER & to_par, const CString & call_id, 
-//	const CSEQ_PARAMETER & cseq, CONTACT_PARAMETER * contact_par, ROUTE_PARAMETER *route,
+//	const HEADER_VIA & via_par, const HEADER_FROM & from_par,
+//	const HEADER_TO & to_par, const CString & call_id, 
+//	const HEADER_CSEQ & cseq, HEADER_CONTACT * contact_par, HEADER_ROUTE *route,
 //	const CString & auth_string, CSDP * sdp,int max_forward)
 //{
 //
@@ -156,6 +156,87 @@ CString CSipPacket::call_id_to_string(const CString call_id)
 	return string;
 }
 
+CString CSipPacket::status_code_to_string(STATUS_CODE code)
+{
+	CString str_line;
+	
+	switch (code)
+	{
+	case Trying:
+		str_line.Format(_T("SIP/2.0 100 Trying\r\n"));
+		break;
+	case Ringing:
+		str_line.Format(_T("SIP/2.0 180 Ringing\r\n"));
+		break;
+	case OK:
+		str_line.Format(_T("SIP/2.0 200 OK\r\n"));
+		break;
+	case Unauthorized:
+		str_line.Format(_T("SIP/2.0 401 OK\r\n"));
+		break;
+	case Proxy_Authentication:
+		str_line.Format(_T("SIP/2.0 407 OK\r\n"));
+		break;
+	default:
+		break;
+	}
+	
+	return str_line;
+}
+
+BOOL CSipPacket::add_auth(const CString & auth)
+{
+	if (NULL == m_data || auth.IsEmpty())
+		return FALSE;
+
+	//修改via branch
+	CString str_packet, packet_L, packet_R, branch;
+	int i = 0, j = 0;
+
+	branch = CSipPacket::build_via_branch();
+	if (branch.IsEmpty())
+		return FALSE;
+
+	str_packet = m_data;
+	i = str_packet.Find(_T("branch"));
+	if (i < 0)
+		return FALSE;
+	i += strlen("branch=");
+	j = i;
+	while (j < str_packet.GetLength())
+	{
+		if (';' == str_packet.GetAt(j) || '\r' == str_packet.GetAt(j))
+			break;
+		j++;
+	}
+	packet_L = str_packet.Left(i);
+	packet_R = str_packet.Right(str_packet.GetLength() - j);
+
+	str_packet = packet_L + branch + packet_R;
+
+	//添加auth
+	i = str_packet.Find(_T("\r\n\r\n"));
+	if (i < 0)
+		return FALSE;
+	i += 2;
+	str_packet.Insert(i, auth);
+
+	char *p = NULL;
+	USES_CONVERSION;
+	p = T2A(str_packet);
+	if (NULL == p)
+		return FALSE;
+
+	str_packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = str_packet.GetLength();
+	memset(m_data, 0, PACK_SIZE);
+	memcpy(m_data, p, m_len);
+
+
+
+
+	return TRUE;
+}
+
 int CSipPacket::from_buffer(char * buffer, int buffer_len)
 {
 	if (NULL == buffer || buffer_len <= 0)
@@ -180,10 +261,21 @@ int CSipPacket::get_data(BYTE * buf, int buf_size)
 	return m_len;
 }
 
-BOOL CSipPacket::build_register_request(const REQUEST_PARAMETER & request_par,
-	const VIA_PARAMETER & via_par, int max_forward, CONTACT_PARAMETER & contact_par,
-	const TO_PARAMETER & to_par, const FROM_PARAMETER & from_par, const CString & call_id,
-	const CSEQ_PARAMETER & cseq, const CString & auth_string, const CString & optional_att)
+CString CSipPacket::get_data()
+{
+	CString data;
+
+
+	if (m_data != NULL)
+		data = m_data;
+
+	return data;
+}
+
+BOOL CSipPacket::build_register_request(const REQUEST_LINE & request_par,
+	const CPtrViaArray & via_par, int max_forward, HEADER_CONTACT & contact_par,
+	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
+	const HEADER_CSEQ & cseq, const CString & auth_string, const CString & optional_att)
 {
 	CString packet, str_temp, str_sdp;
 
@@ -193,8 +285,16 @@ BOOL CSipPacket::build_register_request(const REQUEST_PARAMETER & request_par,
 
 	//packet header
 	//via
-	str_temp = via_par.to_string();
-	packet += str_temp;
+	for (int i = 0; i < via_par.GetSize(); i++)
+	{
+		if (via_par.GetAt(i) != NULL)
+		{
+			str_temp = via_par.GetAt(i)->to_string();
+			packet += str_temp;
+		}
+
+	}
+
 
 	if (max_forward > 0)
 	{
@@ -250,18 +350,325 @@ BOOL CSipPacket::build_register_request(const REQUEST_PARAMETER & request_par,
 	return TRUE;
 }
 
-BOOL CSipPacket::build_inviter_request(const REQUEST_PARAMETER & request_par, const VIA_PARAMETER & via_par, int max_forward, CONTACT_PARAMETER & contact_par, const TO_PARAMETER & to_par, const FROM_PARAMETER & from_par, const CString & call_id, const CSEQ_PARAMETER & cseq, const CSDP & sdp, const CString & auth_string, const CString & optional_att)
+BOOL CSipPacket::build_inviter_request(const REQUEST_LINE & request_par,
+	const CPtrViaArray & via_par, int max_forward, HEADER_CONTACT & contact_par,
+	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
+	const HEADER_CSEQ & cseq, const CSDP & sdp, const CString & auth_string,
+	const CString & optional_att)
 {
-	return 0;
+	CString packet, str_temp, str_sdp;
+
+	//request line
+	str_temp = request_par.to_string();
+	packet += str_temp;
+
+	//packet header
+	//via
+	for (int i = 0; i < via_par.GetSize(); i++)
+	{
+		if (via_par.GetAt(i) != NULL)
+		{
+			str_temp = via_par.GetAt(i)->to_string();
+			packet += str_temp;
+		}
+
+	}
+
+	if (max_forward > 0)
+	{
+		str_temp = max_forward_to_string(max_forward);
+		packet += str_temp;
+	}
+
+	//contact
+	str_temp = contact_par.to_string();
+	packet += str_temp;
+	//to
+	str_temp = to_par.to_string();
+	packet += str_temp;
+	//from
+	str_temp = from_par.to_string();
+	packet += str_temp;
+	//call_id
+	str_temp = call_id_to_string(call_id);
+	packet += str_temp;
+	//cseq
+	str_temp = cseq.to_string();
+	packet += str_temp;
+	//auth
+	if (!auth_string.IsEmpty())
+		packet += auth_string;
+	//content
+	str_sdp = sdp.to_string();
+	str_temp.Format(_T("Content-Type: application/sdp\r\nContent-Length: %d\r\n"),
+		str_sdp.GetLength());
+	packet += str_temp;
+
+	if (!optional_att.IsEmpty())
+		packet += optional_att;
+
+	packet += _T("\r\n"); //message header结束符
+
+	//sdp
+	packet += str_sdp;
+
+
+
+
+	char *p = NULL;
+	USES_CONVERSION;
+	p = T2A(packet);
+	if (NULL == p)
+		return FALSE;
+
+	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+	memset(m_data, 0, PACK_SIZE);
+	memcpy(m_data, p, m_len);
+
+
+	return TRUE;
 }
 
-BOOL CSipPacket::build_ack_request(const CSipPacketInfo & status_info, const REQUEST_PARAMETER & request_par, const VIA_PARAMETER & via_par, int max_forward, ROUTE_PARAMETER * route, CONTACT_PARAMETER * contact_par, const TO_PARAMETER & to_par, const FROM_PARAMETER & from_par, const CString & call_id, const CSEQ_PARAMETER & cseq, const CString & auth_string, const CString & optional_att)
+BOOL CSipPacket::build_ack_request(const REQUEST_LINE & request_par,
+	const CPtrViaArray & via_par, int max_forward, HEADER_ROUTE * route,
+	HEADER_CONTACT * contact_par, const HEADER_TO & to_par, const HEADER_FROM & from_par,
+	const CString & call_id, const HEADER_CSEQ & cseq, const CString & auth_string,
+	const CString & optional_att)
 {
-	return 0;
+	CString packet, str_temp, str_sdp;
+
+	//request line
+	str_temp = request_par.to_string();
+	packet += str_temp;
+
+	//packet header
+	//via
+	for (int i = 0; i < via_par.GetSize(); i++)
+	{
+		if (via_par.GetAt(i) != NULL)
+		{
+			str_temp = via_par.GetAt(i)->to_string();
+			packet += str_temp;
+		}
+
+	}
+
+	if (max_forward > 0)
+	{
+		str_temp = max_forward_to_string(max_forward);
+		packet += str_temp;
+	}
+
+	//route
+	if (NULL != route)
+	{
+		str_temp = route->to_string();
+		packet += str_temp;
+	}
+
+
+	//contact
+	if (contact_par != NULL)
+	{
+		str_temp = contact_par->to_string();
+		packet += str_temp;
+	}
+	//to
+	str_temp = to_par.to_string();
+	packet += str_temp;
+	//from
+	str_temp = from_par.to_string();
+	packet += str_temp;
+	//call_id
+	str_temp = call_id_to_string(call_id);
+	packet += str_temp;
+	//cseq
+	str_temp = cseq.to_string();
+	packet += str_temp;
+	//auth
+	if (!auth_string.IsEmpty())
+		packet += auth_string;
+
+	if (!optional_att.IsEmpty())
+		packet += optional_att;
+
+
+	packet += _T("\r\n"); //message header结束符
+
+
+	char *p = NULL;
+	USES_CONVERSION;
+	p = T2A(packet);
+	if (NULL == p)
+		return FALSE;
+
+	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+	memset(m_data, 0, PACK_SIZE);
+	memcpy(m_data, p, m_len);
+
+
+	return TRUE;
 }
 
-BOOL CSipPacket::build_bye_request(const REQUEST_PARAMETER & request_par, const VIA_PARAMETER & via_par, int max_forward, ROUTE_PARAMETER * route, CONTACT_PARAMETER & contact_par, const TO_PARAMETER & to_par, const FROM_PARAMETER & from_par, const CString & call_id, const CSEQ_PARAMETER & cseq, const CString & optional_att)
+BOOL CSipPacket::build_bye_request(const REQUEST_LINE & request_par, const CPtrViaArray & via_par,
+	int max_forward, HEADER_ROUTE * route, HEADER_CONTACT & contact_par, const HEADER_TO & to_par,
+	const HEADER_FROM & from_par, const CString & call_id, const HEADER_CSEQ & cseq,
+	const CString &auth_string, const CString & optional_att)
 {
+
+	CString packet, str_temp, str_sdp;
+
+	//request line
+	str_temp = request_par.to_string();
+	packet += str_temp;
+
+	//packet header
+	//via
+	for (int i = 0; i < via_par.GetSize(); i++)
+	{
+		if (via_par.GetAt(i) != NULL)
+		{
+			str_temp = via_par.GetAt(i)->to_string();
+			packet += str_temp;
+		}
+
+	}
+
+	if (max_forward > 0)
+	{
+		str_temp = max_forward_to_string(max_forward);
+		packet += str_temp;
+	}
+
+	//route
+	if (NULL != route)
+	{
+		str_temp = route->to_string();
+		packet += str_temp;
+	}
+
+
+	//contact
+	str_temp = contact_par.to_string();
+	packet += str_temp;
+	//to
+	str_temp = to_par.to_string();
+	packet += str_temp;
+	//from
+	str_temp = from_par.to_string();
+	packet += str_temp;
+	//call_id
+	str_temp = call_id_to_string(call_id);
+	packet += str_temp;
+	//cseq
+	str_temp = cseq.to_string();
+	packet += str_temp;
+	//auth
+	if (!auth_string.IsEmpty())
+		packet += auth_string;
+
+	if (!optional_att.IsEmpty())
+		packet += optional_att;
+
+
+	packet += _T("\r\n"); //message header结束符
+
+
+	char *p = NULL;
+	USES_CONVERSION;
+	p = T2A(packet);
+	if (NULL == p)
+		return FALSE;
+
+	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+	memset(m_data, 0, PACK_SIZE);
+	memcpy(m_data, p, m_len);
+
+
+	return TRUE;
+
+
+
+}
+
+BOOL CSipPacket::build_status(STATUS_CODE code, const CPtrViaArray & via_par,
+	int max_forward, HEADER_ROUTE * route, HEADER_CONTACT & contact_par,
+	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
+	const HEADER_CSEQ & cseq, const CString & optional_att)
+{
+
+
+
+	CString packet, str_temp, str_sdp;
+
+	//request line
+	str_temp = status_code_to_string(code);
+	packet += str_temp;
+
+	//packet header
+	//via
+	for (int i = 0; i < via_par.GetSize(); i++)
+	{
+		if (via_par.GetAt(i) != NULL)
+		{
+			str_temp = via_par.GetAt(i)->to_string();
+			packet += str_temp;
+		}
+
+	}
+
+	if (max_forward > 0)
+	{
+		str_temp = max_forward_to_string(max_forward);
+		packet += str_temp;
+	}
+
+	//route
+	if (NULL != route)
+	{
+		str_temp = route->to_string();
+		packet += str_temp;
+	}
+
+
+	//contact
+	str_temp = contact_par.to_string();
+	packet += str_temp;
+	//to
+	str_temp = to_par.to_string();
+	packet += str_temp;
+	//from
+	str_temp = from_par.to_string();
+	packet += str_temp;
+	//call_id
+	str_temp = call_id_to_string(call_id);
+	packet += str_temp;
+	//cseq
+	str_temp = cseq.to_string();
+	packet += str_temp;
+
+	if (!optional_att.IsEmpty())
+		packet += optional_att;
+
+
+	packet += _T("\r\n"); //message header结束符
+
+
+	char *p = NULL;
+	USES_CONVERSION;
+	p = T2A(packet);
+	if (NULL == p)
+		return FALSE;
+
+	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+	memset(m_data, 0, PACK_SIZE);
+	memcpy(m_data, p, m_len);
+
+
+	return TRUE;
+
+
+
 	return 0;
 }
 
@@ -292,17 +699,50 @@ CString CSipPacket::NewGUIDString()
 
 CSipPacketInfo::CSipPacketInfo()
 {
-	m_max_forwards = 70;
+	m_max_forwards = 0;
+	m_contact = NULL;
+	m_route = NULL;
 	m_sdp_info = NULL;
 	m_build_time = 0;
 }
 
 CSipPacketInfo::~CSipPacketInfo()
 {
+
+	if (m_via_arr.GetSize() > 0)
+	{
+		HEADER_VIA *via = NULL;
+		for (int i = 0; i < m_via_arr.GetSize(); i++)
+		{
+			via = m_via_arr.GetAt(i);
+			if (NULL != via)
+			{
+				delete via;
+				via = NULL;
+			}
+		}
+
+		m_via_arr.RemoveAll();
+
+	}
+
+
 	if (NULL != m_sdp_info)
 	{
 		delete m_sdp_info;
 		m_sdp_info = NULL;
+	}
+
+	if (NULL != m_contact)
+	{
+		delete m_contact;
+		m_contact = NULL;
+	}
+
+	if (NULL != m_route)
+	{
+		delete m_route;
+		m_route = NULL;
 	}
 }
 
@@ -312,16 +752,26 @@ CSipPacketInfo & CSipPacketInfo::operator=(const CSipPacketInfo & packet_info)
 	this->m_request_par = packet_info.m_request_par;
 	this->m_status_code = packet_info.m_status_code;
 
-	this->m_via = packet_info.m_via;
-	this->m_max_forwards = packet_info.m_max_forwards;
+	HEADER_VIA *viaTemp = NULL;
+	free_via();
+	for (int i = 0; i < packet_info.m_via_arr.GetSize(); i++)
+	{
+		if (packet_info.m_via_arr.GetAt(i) != NULL)
+		{
+			viaTemp = new HEADER_VIA();
+			*viaTemp = *(packet_info.m_via_arr.GetAt(i));
+			m_via_arr.Add(viaTemp);
+		}
+	}
+
 	this->m_from = packet_info.m_from;
 	this->m_to = packet_info.m_to;
 	this->m_call_id = packet_info.m_call_id;
 	this->m_cseq = packet_info.m_cseq;
 
 	//可选
-	this->m_contact = packet_info.m_contact;
-	this->m_route = packet_info.m_route;
+	if (packet_info.m_max_forwards > 0)
+		this->m_max_forwards = packet_info.m_max_forwards;
 	this->m_realm = packet_info.m_realm;
 	this->m_nonce = packet_info.m_nonce;
 	this->m_auth = packet_info.m_auth;
@@ -332,7 +782,21 @@ CSipPacketInfo & CSipPacketInfo::operator=(const CSipPacketInfo & packet_info)
 
 		*(this->m_sdp_info) = *(packet_info.m_sdp_info);
 	}
-	//CString m_route;
+
+	if (packet_info.m_contact != NULL)
+	{
+		if (this->m_contact == NULL)
+			this->m_contact = new HEADER_CONTACT();
+
+		*(this->m_contact) = *(packet_info.m_contact);
+	}
+	if (packet_info.m_route != NULL)
+	{
+		if (this->m_route == NULL)
+			this->m_route = new HEADER_ROUTE();
+
+		*(this->m_route) = *(packet_info.m_route);
+	}
 
 	m_build_time = ::GetTickCount();
 
@@ -344,13 +808,13 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 {
 	if (NULL == packet)
 		return FALSE;
-	
-	char *p = NULL;
-	int i = 0, j = 0, flag = 0, data_len = 0;
+
+	int i = 0, j = 0;
 	CString str_data, str_line;
-
-
 	BYTE buf[4096] = { 0 };
+
+
+
 	i = packet->get_data(buf, 4096);
 	if (i < 0)
 		return FALSE;
@@ -376,15 +840,28 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 
 	//via
 	i = 0, j = 0;
-	i = str_data.Find(_T("Via"), j);
-	if (i < 0)
-		return FALSE;
-	j = str_data.Find(_T("\r\n"), i);
-	if (j < 0)
-		return FALSE;
-	str_line = str_data.Mid(i, j - i);
-	if (!m_via.from_string(str_line))
-		return FALSE;
+	HEADER_VIA *tempVia = NULL;
+	free_via();
+	while (i < str_data.GetLength() && j < str_data.GetLength())
+	{
+		i = str_data.Find(_T("Via"), j);
+		if (i < 0)
+			break;
+		j = str_data.Find(_T("\r\n"), i);
+		if (j < 0)
+			break;
+		str_line = str_data.Mid(i, j - i);
+
+		tempVia = new HEADER_VIA();
+		if (tempVia != NULL)
+		{
+			if (!tempVia->from_string(str_line))
+				return FALSE;
+			m_via_arr.Add(tempVia);
+		}
+	}
+
+
 	//from
 	i = str_data.Find(_T("From"), 0);
 	if (i < 0)
@@ -436,7 +913,9 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 		if ( j >= 0)
 		{
 			str_line = str_data.Mid(i, j - i );
-			if (!m_contact.from_string(str_line))
+			if (m_contact == NULL)
+				m_contact = new HEADER_CONTACT();
+			if (!m_contact->from_string(str_line))
 				return FALSE;
 		}
 	}
@@ -473,14 +952,20 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 		{
 			j = str_data.Find(_T("\r\n"), i);
 			if (j > 0)
+			{
+				j += 2;
 				m_auth = str_data.Mid(i, j - i);
+			}
 		}
 	}
 	else
 	{
 		j = str_data.Find(_T("\r\n"), i);
 		if (j > 0)
+		{
+			j += 2;
 			m_auth = str_data.Mid(i, j - i);
+		}
 	}
 
 	//route
@@ -491,16 +976,20 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 		if (j >= 0)
 		{
 			str_line = str_data.Mid(i, j - i );
-			if (!m_route.from_string(str_line))
+			if (m_route == NULL)
+				m_route = new HEADER_ROUTE();
+			if (!m_route->from_string(str_line))
 				return FALSE;
 		}
 	}
 
 	//sdp
+	char *p = NULL;
 	i = str_data.Find(_T("\r\n\r\nv="));
 	if (i > 0)
 	{
-		m_sdp_info = new CSDP();
+		if (m_sdp_info == NULL)
+			m_sdp_info = new CSDP();
 		i += strlen("\r\n\r\nv=");
 		str_line = str_data.Right(str_data.GetLength() - i);
 		USES_CONVERSION;
@@ -551,84 +1040,139 @@ BOOL CSipPacketInfo::from_packet(CSipPacket * packet)
 	return TRUE;
 }
 
+//CSipPacket CSipPacketInfo::to_packet()
+//{
+//	CString str_packet;
+//	CSipPacket packet;
+//
+//
+//	if (m_type == sip_request)
+//		str_packet += m_request_par.to_string();
+//	else
+//		str_packet += packet.status_code_to_string(m_status_code);
+//
+//
+//	str_packet += m_via.to_string();
+//	str_packet += m_.to_string();
+//	str_packet += m_via.to_string();
+//	str_packet += m_via.to_string();
+//
+//
+//
+//}
 
-REQUEST_PARAMETER CSipPacketInfo::get_request()
+
+REQUEST_LINE CSipPacketInfo::get_request()const
 {
 	return m_request_par;
 }
 
 
-STATUS_CODE CSipPacketInfo::get_status_code()
+STATUS_CODE CSipPacketInfo::get_status_code()const
 {
 	return m_status_code;
 }
 
-VIA_PARAMETER  CSipPacketInfo::get_via()
+
+void CSipPacketInfo::get_via(CPtrViaArray & viaArr) const
 {
-	return m_via;
+	HEADER_VIA *via = NULL;
+
+	for (int i = 0; i < m_via_arr.GetSize(); i++)
+	{
+		via = new HEADER_VIA();
+		if (via != NULL && m_via_arr.GetAt(i)!=NULL)
+		{
+			via->branch = m_via_arr.GetAt(i)->branch;
+			via->received_address = m_via_arr.GetAt(i)->received_address;
+			via->recvived_port = m_via_arr.GetAt(i)->recvived_port;
+			via->sent_address = m_via_arr.GetAt(i)->sent_address;
+			via->sent_port = m_via_arr.GetAt(i)->sent_port;
+
+			viaArr.Add(via);
+		}
+	}
+
 }
 
-CString CSipPacketInfo::get_call_id()
+CString CSipPacketInfo::get_call_id()const
 {
 	return m_call_id;
 }
 
-FROM_PARAMETER CSipPacketInfo::get_from()
+HEADER_FROM CSipPacketInfo::get_from()const
 {
 	return m_from;
 }
 
-TO_PARAMETER CSipPacketInfo::get_to()
+HEADER_TO CSipPacketInfo::get_to()const
 {
 	return m_to;
 }
 
-CSEQ_PARAMETER CSipPacketInfo::get_cseq()
+HEADER_CSEQ CSipPacketInfo::get_cseq()const
 {
 	
 	return m_cseq;
 }
 
-int CSipPacketInfo::get_max_forwards()
+int CSipPacketInfo::get_max_forwards()const
 {
 
 	return m_max_forwards;
 }
 
-DWORD CSipPacketInfo::get_build_time()
+DWORD CSipPacketInfo::get_build_time()const
 {
 	return m_build_time;
 }
 
-CONTACT_PARAMETER  CSipPacketInfo::get_contact()
+BOOL CSipPacketInfo::get_contact(HEADER_CONTACT &contact)const
 {
-	return m_contact;
+	if (m_contact == NULL)
+		return FALSE;
+
+	contact = *m_contact;
+
+
+	return TRUE;
 }
 
-CString CSipPacketInfo::get_realm()
+CString CSipPacketInfo::get_realm()const
 {
 	return m_realm;
 }
 
-CString CSipPacketInfo::get_nonce()
+CString CSipPacketInfo::get_nonce()const
 {
 	return m_nonce;
 }
 
-CString CSipPacketInfo::get_auth()
+CString CSipPacketInfo::get_auth()const
 {
 	return m_auth;
 }
 
 
-ROUTE_PARAMETER CSipPacketInfo::get_route()
+BOOL CSipPacketInfo::get_route(HEADER_ROUTE &route)const
 {
-	return m_route;
+	if (m_route == NULL)
+		return FALSE;
+
+	route = *(m_route);
+
+
+	return TRUE;
 }
 
-CSDP CSipPacketInfo::get_sdp_info()
+BOOL CSipPacketInfo::get_sdp_info(CSDP &sdp)const
 {
-	return *m_sdp_info;
+	if (NULL == m_sdp_info)
+		return FALSE;
+
+	sdp = *m_sdp_info;
+
+	return TRUE;
 }
 
 BOOL CSipPacketInfo::str_to_mess_type(MESSAGE_TYPE &type, const CString string)
@@ -705,7 +1249,49 @@ BOOL CSipPacketInfo::str_to_callid(CString & call_id, const CString & callid_str
 	return TRUE;
 }
 
- CString request_parameter::to_string() const
+void CSipPacketInfo::free_via()
+{
+	HEADER_VIA *p = NULL;
+	if (m_via_arr.GetSize() > 0)
+	{
+		for (int i = 0; i < m_via_arr.GetSize(); i++)
+		{
+			p = m_via_arr.GetAt(i);
+			if (p != NULL)
+			{
+				delete p;
+				p = NULL;
+			}
+		}
+
+		m_via_arr.RemoveAll();
+	}
+
+}
+
+//void CSipPacketInfo::copy_via(const CPtrViaArray & via)
+//{
+//	free_via();
+//	HEADER_VIA *p = NULL;
+//
+//
+//	for (int i = 0; i < via.GetSize(); i++)
+//	{
+//		p = new HEADER_VIA();
+//		if (p != NULL &&  via.GetAt(i) != NULL)
+//		{
+//			p->sent_address = via.GetAt(i)->sent_address;
+//			p->sent_port= via.GetAt(i)->sent_port;
+//			p->received_address = via.GetAt(i)->received_address;
+//			p->recvived_port = via.GetAt(i)->recvived_port;
+//			p->branch = via.GetAt(i)->branch;
+//
+//			m_via_arr.Add(p);
+//		}
+//	}
+//}
+
+ CString stuRequestLine::to_string() const
 {
 	CString string, str_method, str_sip;
 
@@ -736,7 +1322,7 @@ BOOL CSipPacketInfo::str_to_callid(CString & call_id, const CString & callid_str
 
 }
 
- BOOL request_parameter::from_string(const CString & string)
+ BOOL stuRequestLine::from_string(const CString & string)
  {
 
 	 int i = 0, j = 0;
@@ -773,13 +1359,15 @@ BOOL CSipPacketInfo::str_to_callid(CString & call_id, const CString & callid_str
 	 if (i >= 0)
 	 {
 		 i += strlen("rinstance=");
+		 str_temp.Empty();
 		 while (i < string.GetLength())
 		 {
 			 if (' ' == string.GetAt(i) || ';' == string.GetAt(i))
 				 break;
-			 rinstance += string.GetAt(i);
+			 str_temp += string.GetAt(i);
 			 i++;
 		 }
+		 rinstance = str_temp;
 	 }
 
 	 return TRUE;
@@ -848,6 +1436,7 @@ BOOL sip_uri::from_string(const CString & string)
 	}
 
 	//host
+	temp.Empty();
 	if (j >= 0)
 		k = j + 1;
 	else
@@ -856,13 +1445,15 @@ BOOL sip_uri::from_string(const CString & string)
 	{
 		if (' ' == string.GetAt(k) || ':' == string.GetAt(k) || '\r' == string.GetAt(k))
 			break;
-		host += string.GetAt(k);
+		temp += string.GetAt(k);
 		k++;
 	}
+	host = temp;
+
 	return TRUE;
 }
 
-CString via_parameter::to_string() const
+CString stuHeaderVia::to_string() const
 {
 	CString str_via, str_temp;
 
@@ -890,10 +1481,11 @@ CString via_parameter::to_string() const
 	return str_via;
 }
 
-BOOL via_parameter::from_string(const CString & string)
+BOOL stuHeaderVia::from_string(const CString & string)
 {
 	if (string.IsEmpty())
 		return FALSE;
+	CString temp;
 
 
 	int i = 0, j = 0, num = 0;
@@ -913,13 +1505,15 @@ BOOL via_parameter::from_string(const CString & string)
 	if (i < 0)
 		return FALSE;
 	i += strlen("branch=");
+	temp.Empty();
 	while (i < string.GetLength())
 	{
 		if (';' == string.GetAt(i) || ' ' == string.GetAt(i))
 			break;
-		branch += string.GetAt(i);
+		temp += string.GetAt(i);
 		i++;
 	}
+	branch = temp;
 
 
 	//receive addres
@@ -931,9 +1525,10 @@ BOOL via_parameter::from_string(const CString & string)
 		{
 			if (';' == string.GetAt(i) || ' ' == string.GetAt(i))
 				break;
-			received_address += string.GetAt(i);
+			temp += string.GetAt(i);
 			i++;
 		}
+		received_address = temp;
 	}
 
 	//rport
@@ -955,7 +1550,27 @@ BOOL via_parameter::from_string(const CString & string)
 	return TRUE;
 }
 
-CString from_parameter::to_string() const
+stuHeaderVia & stuHeaderVia::operator=(const stuHeaderVia & via)
+{
+	sent_address = via.sent_address;
+	sent_port = via.sent_port;
+	received_address = via.received_address;
+	recvived_port = via.recvived_port;
+	branch = via.branch;
+
+	return *this;
+}
+
+//stuHeaderVia& operator=(const struct stuHeaderVia &via)
+//{
+//	 sent_address = via.sent_address;
+//	 sent_port = via.sent_port;
+//	 received_address = via.received_address;
+//	 recvived_port = via.recvived_port;
+//	 branch = via.branch;
+//}
+
+CString stuHeaderFrom::to_string() const
 {
 	CString str_from, str_temp;
 
@@ -977,7 +1592,7 @@ CString from_parameter::to_string() const
 	return str_from;
 }
 
-BOOL from_parameter::from_string(const CString & string)
+BOOL stuHeaderFrom::from_string(const CString & string)
 {
 	int i = 0, j = 0;
 
@@ -1012,7 +1627,7 @@ BOOL from_parameter::from_string(const CString & string)
 	return TRUE;
 }
 
-CString cseq_parameter::to_string() const
+CString stuHeaderCseq::to_string() const
 {
 	CString str_cseq, str_method;
 	
@@ -1038,7 +1653,7 @@ CString cseq_parameter::to_string() const
 	
 }
 
-BOOL cseq_parameter::from_string(const CString & string)
+BOOL stuHeaderCseq::from_string(const CString & string)
 {
 	CString temp;
 	int i = 0, j = 0;
@@ -1085,7 +1700,7 @@ BOOL cseq_parameter::from_string(const CString & string)
 	return TRUE;
 }
 
-CString contact_parameter::to_string() const
+CString stuHeaderContact::to_string() const
 {
 	CString string, str_temp;
 
@@ -1101,7 +1716,7 @@ CString contact_parameter::to_string() const
 	return string;
 }
 
-BOOL contact_parameter::from_string(const CString & string)
+BOOL stuHeaderContact::from_string(const CString & string)
 {
 	int i = 0, j = 0;
 	CString str_temp;
@@ -1122,6 +1737,7 @@ BOOL contact_parameter::from_string(const CString & string)
 	if (i >= 0)
 	{
 		i += strlen("rinstance=");
+		str_temp.Empty();
 
 		while (i < string.GetLength())
 		{
@@ -1133,16 +1749,17 @@ BOOL contact_parameter::from_string(const CString & string)
 				i++;
 				continue;
 			}
-			rinstance += string.GetAt(i);
+			str_temp += string.GetAt(i);
 			i++;
 		}
+		rinstance = str_temp;
 	}
 
 
 	return TRUE;
 }
 
-CString to_parameter::to_string() const
+CString stuHeaderTo::to_string() const
 {
 	CString string, str_temp;
 
@@ -1164,7 +1781,7 @@ CString to_parameter::to_string() const
 	return string;
 }
 
-BOOL to_parameter::from_string(const CString & string)
+BOOL stuHeaderTo::from_string(const CString & string)
 {
 
 	int i = 0, j = 0;
@@ -1203,7 +1820,7 @@ BOOL to_parameter::from_string(const CString & string)
 	return 0;
 }
 
-MESSAGE_TYPE CSipPacketInfo::get_type()
+MESSAGE_TYPE CSipPacketInfo::get_type()const
 {
 	return m_type;
 }
@@ -1236,7 +1853,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	 return m_route;
 // }
 
-//BOOL CSipPacketInfo::str_to_viapar(VIA_PARAMETER &via, const CString & string)
+//BOOL CSipPacketInfo::str_to_viapar(HEADER_VIA &via, const CString & string)
 //{
 //	if (string.IsEmpty())
 //		return FALSE;
@@ -1349,7 +1966,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //
 //}
 
-//BOOL CSipPacketInfo::str_to_frompar(FROM_PARAMETER &from_par, const CString & string)
+//BOOL CSipPacketInfo::str_to_frompar(HEADER_FROM &from_par, const CString & string)
 //{
 //	int i = 0, j = 0;
 //	CString display_user, user, host, tag;
@@ -1392,7 +2009,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return TRUE;
 //}
 //
-//BOOL CSipPacketInfo::str_to_topar(TO_PARAMETER &to_par, const CString & string)
+//BOOL CSipPacketInfo::str_to_topar(HEADER_TO &to_par, const CString & string)
 //{
 //	int i = 0, j = 0;
 //
@@ -1427,7 +2044,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return TRUE;
 //}
 //
-//BOOL CSipPacketInfo::str_to_contactpar(CONTACT_PARAMETER &contact_par, const CString & string)
+//BOOL CSipPacketInfo::str_to_contactpar(HEADER_CONTACT &contact_par, const CString & string)
 //{
 //	int i = 0, j = 0;
 //	CString str_temp;
@@ -1488,7 +2105,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return TRUE;
 //}
 
-//BOOL CSipPacketInfo::str_to_cseqpar(CSEQ_PARAMETER &cseq_par, const CString & string)
+//BOOL CSipPacketInfo::str_to_cseqpar(HEADER_CSEQ &cseq_par, const CString & string)
 //{
 //	CString temp;
 //	int i = 0, j = 0;
@@ -1604,7 +2221,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return TRUE;
 //}
 //
-//BOOL CSipPacket::add_via(VIA_PARAMETER via)
+//BOOL CSipPacket::add_via(HEADER_VIA via)
 //{
 //
 //
@@ -1721,22 +2338,22 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return TRUE;
 //}
 //
-//CString CSipPacket::generate_via_line(VIA_PARAMETER *via_parameter)
+//CString CSipPacket::generate_via_line(HEADER_VIA *HEADER_VIA)
 //{
 //	CString str_via, str_temp;
 //
-//	str_via.Format(_T("Via: SIP/2.0/UDP %s:%d;"), via_parameter->sent_address, via_parameter->sent_port);
-//	str_temp.Format(_T("branch=%s;"), via_parameter->branch);
+//	str_via.Format(_T("Via: SIP/2.0/UDP %s:%d;"), HEADER_VIA->sent_address, HEADER_VIA->sent_port);
+//	str_temp.Format(_T("branch=%s;"), HEADER_VIA->branch);
 //	str_via += str_temp;
 //	
-//	if (!via_parameter->received_address.IsEmpty())
+//	if (!HEADER_VIA->received_address.IsEmpty())
 //	{
-//		str_temp.Format(_T("received=%s;"), via_parameter->received_address);
+//		str_temp.Format(_T("received=%s;"), HEADER_VIA->received_address);
 //		str_via += str_temp;
 //
-//		if (via_parameter->recvived_port > 0)
+//		if (HEADER_VIA->recvived_port > 0)
 //		{
-//			str_temp.Format(_T("rport=%d\r\n"), via_parameter->recvived_port);
+//			str_temp.Format(_T("rport=%d\r\n"), HEADER_VIA->recvived_port);
 //			str_via += str_temp;
 //		}
 //	}
@@ -1749,21 +2366,21 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return str_via;
 //}
 //
-//CString CSipPacket::generate_from_line(FROM_PARAMETER *from_parameter)
+//CString CSipPacket::generate_from_line(HEADER_FROM *HEADER_FROM)
 //{
 //	CString str_from, str_temp;
 //
 //	str_from.Format(_T("From: "));
-//	if (!from_parameter->display_user.IsEmpty())
+//	if (!HEADER_FROM->display_user.IsEmpty())
 //	{
-//		str_temp.Format(_T("\"%s\" "), from_parameter->display_user);
+//		str_temp.Format(_T("\"%s\" "), HEADER_FROM->display_user);
 //		str_from += str_temp;
 //	}
-//	str_temp.Format(_T("<sip:%s@%s>"), from_parameter->user, from_parameter->host);
+//	str_temp.Format(_T("<sip:%s@%s>"), HEADER_FROM->user, HEADER_FROM->host);
 //	str_from += str_temp;
-//	if (!from_parameter->tag.IsEmpty())
+//	if (!HEADER_FROM->tag.IsEmpty())
 //	{
-//		str_temp.Format(_T(";tag=%s"), from_parameter->tag);
+//		str_temp.Format(_T(";tag=%s"), HEADER_FROM->tag);
 //		str_from += str_temp;
 //	}
 //	str_from += _T("\r\n");
@@ -1771,21 +2388,21 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return str_from;
 //}
 //
-//CString CSipPacket::generate_to_line(TO_PARAMETER *to_parameter)
+//CString CSipPacket::generate_to_line(HEADER_TO *HEADER_TO)
 //{
 //	CString str_to, str_temp;
 //
 //	str_to.Format(_T("To: "));
-//	if (!to_parameter->display_info.IsEmpty())
+//	if (!HEADER_TO->display_info.IsEmpty())
 //	{
-//		str_temp.Format(_T("\"%s\" "), to_parameter->display_info);
+//		str_temp.Format(_T("\"%s\" "), HEADER_TO->display_info);
 //		str_to += str_temp;
 //	}
-//	str_temp.Format(_T("<sip:%s@%s>"), to_parameter->to_user, to_parameter->to_host);
+//	str_temp.Format(_T("<sip:%s@%s>"), HEADER_TO->to_user, HEADER_TO->to_host);
 //	str_to += str_temp;
-//	if (!to_parameter->to_tag.IsEmpty())
+//	if (!HEADER_TO->to_tag.IsEmpty())
 //	{
-//		str_temp.Format(_T(";tag=%s"), to_parameter->to_tag);
+//		str_temp.Format(_T(";tag=%s"), HEADER_TO->to_tag);
 //		str_to += str_temp;
 //	}
 //	str_to += _T("\r\n");
@@ -1794,15 +2411,15 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //
 //}
 //
-//CString CSipPacket::generate_contact_line(CONTACT_PARAMETER *contact_parameter)
+//CString CSipPacket::generate_contact_line(HEADER_CONTACT *HEADER_CONTACT)
 //{
 //	CString contact_line, str_temp;
 //
-//	contact_line.Format(_T("Contact: <sip:%s@%s:%d>"), contact_parameter->contact_uri.user,
-//		contact_parameter->contact_uri.host, contact_parameter->contact_uri.port);
-//	if (!contact_parameter->contact_uri.rinstance.IsEmpty())
+//	contact_line.Format(_T("Contact: <sip:%s@%s:%d>"), HEADER_CONTACT->contact_uri.user,
+//		HEADER_CONTACT->contact_uri.host, HEADER_CONTACT->contact_uri.port);
+//	if (!HEADER_CONTACT->contact_uri.rinstance.IsEmpty())
 //	{
-//		str_temp.Format(_T(";+sip.instance=%s"), contact_parameter->contact_uri.rinstance);
+//		str_temp.Format(_T(";+sip.instance=%s"), HEADER_CONTACT->contact_uri.rinstance);
 //		contact_line += str_temp;
 //	}
 //	contact_line += _T("\r\n");
@@ -1828,11 +2445,11 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return str_call_id;
 //}
 //
-//CString  CSipPacket::generate_cseq_line(CSEQ_PARAMETER *cseq_parameter)
+//CString  CSipPacket::generate_cseq_line(HEADER_CSEQ *HEADER_CSEQ)
 //{
 //	CString str_cseq, str_method;
 //
-//	switch (cseq_parameter->method)
+//	switch (HEADER_CSEQ->method)
 //	{
 //	case Register:
 //		str_method = _T("REGISTER");
@@ -1847,7 +2464,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //		str_method = _T("BYE");
 //		break;
 //	}
-//	str_cseq.Format(_T("CSeq: %d %s\r\n"), cseq_parameter->cseq, str_method);
+//	str_cseq.Format(_T("CSeq: %d %s\r\n"), HEADER_CSEQ->cseq, str_method);
 //
 //	
 //	return str_cseq;
@@ -1911,7 +2528,7 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return auth;
 //}
 
-// BOOL CSipPacketInfo::get_via(VIA_PARAMETER &via_par, int index)
+// BOOL CSipPacketInfo::get_via(HEADER_VIA &via_par, int index)
 //{
 //	if (index<0 || index>m_array_via.GetCount() - 1)
 //		return FALSE;
@@ -1924,14 +2541,14 @@ MESSAGE_TYPE CSipPacketInfo::get_type()
 //	return TRUE;
 //}
 
-CString route_parameter::to_string() const
+CString HEADER_ROUTE::to_string() const
 {
 	CString string;
 	string.Format(_T("Route: <sip:%s;%s>\r\n"), host, parameter);
 	return string;
 }
 
-BOOL route_parameter::from_string(const CString & string)
+BOOL HEADER_ROUTE::from_string(const CString & string)
 {
 
 	if (string.IsEmpty())
