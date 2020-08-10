@@ -105,14 +105,16 @@ public:
 	BOOL from_buffer(char * buffer, int buf_len);
 	CString to_string() const;
 
-	//CSDP* Clone(BOOL bEncodeData);
+	void Clone(CSDP &sdp);
 
 	//sdp_attr_find();//
 	CSDP sdp_compare(const CSDP &sdp);
 
 	//pjmedia_sdp_attr_clone
 
-	
+	BOOL set_conn(const CString & strConn);
+	BOOL set_media_conn(int nIndex, const CString &strConn);
+	BOOL set_media_port(int nIndex, WORD wPort);
 
 	//void set_address(CString str_address);
 	//void set_audio_media(BOOL media);

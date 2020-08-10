@@ -6,30 +6,146 @@
 
 
 
-CSipPacket::CSipPacket()
+CSipPacket::CSipPacket(int nPacketLen)
 {
-	m_data = new BYTE[PACK_SIZE]();
-	m_len = 0;
+	m_unLine.pData = NULL;
+	m_pBody = NULL;
+
+
+	//m_data = new BYTE[PACK_SIZE]();
+	//m_data = NULL; 
+	//m_len = nPacketLen;
+
+	//if (nPacketLen > 0)
+	//	m_data = new  BYTE[nPacketLen];
 }
 
 CSipPacket::~CSipPacket()
 {
-	if (NULL != m_data)
+	if (m_unLine.pData != NULL)
 	{
-		delete m_data;
-		m_data = NULL;
+		delete m_unLine.pData;
+		m_unLine.pData = NULL;
 	}
 
-	m_len = 0;
+	if (m_pBody != NULL)
+	{
+		delete m_pBody;
+		m_pBody = NULL;
+	}
+
 }
 
-CSipPacket::CSipPacket(const CSipPacket & p)
+CSipPacket * CSipPacket::Clone()
 {
-	m_data = new BYTE[PACK_SIZE]();
-	memcpy(m_data, p.m_data, p.m_len);
-	m_len = p.m_len;
+	CSipPacket* packet = NULL;
 
+	packet->m_len = m_len;
+	packet->m_data = new BYTE[m_len];
+	if (packet != NULL)
+		memcpy(packet->m_data, m_data, m_len);
+
+
+	return packet;
 }
+
+BYTE * CSipPacket::get_meaasge(unsigned & len)
+{
+	return nullptr;
+}
+
+BOOL CSipPacket::get_line(MESSAGE_TYPE & emType, SIP_LINE & unLine)
+{
+	return 0;
+}
+
+BOOL CSipPacket::get_line(SIP_LINE & unLine)
+{
+	return 0;
+}
+
+SIP_LINE * CSipPacket::get_line()
+{
+	return nullptr;
+}
+
+BOOL CSipPacket::set_line(MESSAGE_TYPE emType, SIP_LINE unLine)
+{
+	return 0;
+}
+
+BOOL CSipPacket::msg_insert_first_hdr(MESSAGE_HDR stHdr)
+{
+	return 0;
+}
+
+BOOL CSipPacket::msg_add_hdr(MESSAGE_HDR stHdr)
+{
+	return 0;
+}
+
+BOOL CSipPacket::find_remove_hdr(CString strHarName)
+{
+	return 0;
+}
+
+void * CSipPacket::find_hdr_by_name(HDR_TYPES emHdrType)
+{
+	return nullptr;
+}
+
+MESSAGE_HDR * CSipPacket::find_hdr_by_name(CString strHarName)
+{
+	return nullptr;
+}
+
+BOOL CSipPacket::clone_hdr_list(CHdrArray & arrHar)
+{
+	return 0;
+}
+
+BOOL CSipPacket::set_hdr(const CHdrArray & arrHdr)
+{
+	return 0;
+}
+
+BOOL CSipPacket::set_hdr(const CString & strTypeList, void * pData)
+{
+	return 0;
+}
+
+BOOL CSipPacket::set_message_body(MESS_BODY stuBody)
+{
+	return 0;
+}
+
+MESS_BODY * CSipPacket::get_message_body()
+{
+	return nullptr;
+}
+
+BOOL CSipPacket::from_string(CString strString)
+{
+	return 0;
+}
+
+BOOL CSipPacket::create_mess(BYTE * pBuf, unsigned uLen)
+{
+	return 0;
+}
+
+BYTE * CSipPacket::get_meaasge_to_buf(unsigned & len)
+{
+	return nullptr;
+}
+
+//CSipPacket::CSipPacket(const CSipPacket & p)
+//{
+//	m_data = new BYTE[PACK_SIZE]();
+//	memcpy(m_data, p.m_data, p.m_len);
+//	m_len = p.m_len;
+//
+//}
 
 //BOOL CSipPacket::build_request_packet(const REQUEST_PARAMETER & request_par,
 //	const HEADER_VIA & via_par, const HEADER_FROM & from_par,
@@ -138,539 +254,539 @@ CString CSipPacket::build_via_branch()
 	return branch;
 }
 
-CString CSipPacket::max_forward_to_string(int max_forward)
-{
-	CString string;
-
-	string.Format(_T("Max-Forwards: %d\r\n"), max_forward);
-
-	return string;
-}
-
-CString CSipPacket::call_id_to_string(const CString call_id)
-{
-	CString string;
-
-	string.Format(_T("Call-ID: %s\r\n"), call_id);
-
-	return string;
-}
-
-CString CSipPacket::status_code_to_string(STATUS_CODE code)
-{
-	CString str_line;
-	
-	switch (code)
-	{
-	case Trying:
-		str_line.Format(_T("SIP/2.0 100 Trying\r\n"));
-		break;
-	case Ringing:
-		str_line.Format(_T("SIP/2.0 180 Ringing\r\n"));
-		break;
-	case OK:
-		str_line.Format(_T("SIP/2.0 200 OK\r\n"));
-		break;
-	case Unauthorized:
-		str_line.Format(_T("SIP/2.0 401 OK\r\n"));
-		break;
-	case Proxy_Authentication:
-		str_line.Format(_T("SIP/2.0 407 OK\r\n"));
-		break;
-	default:
-		break;
-	}
-	
-	return str_line;
-}
-
-BOOL CSipPacket::add_auth(const CString & auth)
-{
-	if (NULL == m_data || auth.IsEmpty())
-		return FALSE;
-
-	//ÐÞ¸Ävia branch
-	CString str_packet, packet_L, packet_R, branch;
-	int i = 0, j = 0;
-
-	branch = CSipPacket::build_via_branch();
-	if (branch.IsEmpty())
-		return FALSE;
-
-	str_packet = m_data;
-	i = str_packet.Find(_T("branch"));
-	if (i < 0)
-		return FALSE;
-	i += strlen("branch=");
-	j = i;
-	while (j < str_packet.GetLength())
-	{
-		if (';' == str_packet.GetAt(j) || '\r' == str_packet.GetAt(j))
-			break;
-		j++;
-	}
-	packet_L = str_packet.Left(i);
-	packet_R = str_packet.Right(str_packet.GetLength() - j);
-
-	str_packet = packet_L + branch + packet_R;
-
-	//Ìí¼Óauth
-	i = str_packet.Find(_T("\r\n\r\n"));
-	if (i < 0)
-		return FALSE;
-	i += 2;
-	str_packet.Insert(i, auth);
-
-	char *p = NULL;
-	USES_CONVERSION;
-	p = T2A(str_packet);
-	if (NULL == p)
-		return FALSE;
-
-	str_packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = str_packet.GetLength();
-	memset(m_data, 0, PACK_SIZE);
-	memcpy(m_data, p, m_len);
-
-
-
-
-	return TRUE;
-}
-
-int CSipPacket::from_buffer(char * buffer, int buffer_len)
-{
-	if (NULL == buffer || buffer_len <= 0)
-		return -1;
-
-	buffer_len > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = buffer_len;
-
-	memcpy(m_data, buffer, m_len);
-		
-	return m_len;
-}
-
-int CSipPacket::get_data(BYTE * buf, int buf_size)
-{
-	if (NULL == buf || buf_size < m_len + 1)
-		return -1;
-
-	memset(buf, 0, buf_size);
-	memcpy(buf, m_data, m_len);
-
-
-	return m_len;
-}
-
-CString CSipPacket::get_data()
-{
-	CString data;
-
-
-	if (m_data != NULL)
-		data = m_data;
-
-	return data;
-}
-
-BOOL CSipPacket::build_register_request(const REQUEST_LINE & request_par,
-	const CPtrViaArray & via_par, int max_forward, HEADER_CONTACT & contact_par,
-	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
-	const HEADER_CSEQ & cseq, const CString & auth_string, const CString & optional_att)
-{
-	CString packet, str_temp, str_sdp;
-
-	//request line
-	str_temp = request_par.to_string();
-	packet += str_temp;
-
-	//packet header
-	//via
-	for (int i = 0; i < via_par.GetSize(); i++)
-	{
-		if (via_par.GetAt(i) != NULL)
-		{
-			str_temp = via_par.GetAt(i)->to_string();
-			packet += str_temp;
-		}
-
-	}
-
-
-	if (max_forward > 0)
-	{
-		str_temp = max_forward_to_string(max_forward);
-		packet += str_temp;
-	}
-
-	//route
-	//if (NULL != route)
-	//{
-	//	str_temp = route->to_string();
-	//	packet += str_temp;
-	//}
-
-
-	//contact
-	str_temp = contact_par.to_string();
-	packet += str_temp;
-	//to
-	str_temp = to_par.to_string();
-	packet += str_temp;
-	//from
-	str_temp = from_par.to_string();
-	packet += str_temp;
-	//call_id
-	str_temp = call_id_to_string(call_id);
-	packet += str_temp;
-	//cseq
-	str_temp = cseq.to_string();
-	packet += str_temp;
-	//auth
-	if (!auth_string.IsEmpty())
-		packet += auth_string;
-
-	if(!optional_att.IsEmpty())
-		packet += optional_att;
-
-
-	packet += _T("\r\n"); //message header½áÊø·û
-
-
-	char *p = NULL;
-	USES_CONVERSION;
-	p = T2A(packet);
-	if (NULL == p)
-		return FALSE;
-
-	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
-	memset(m_data, 0, PACK_SIZE);
-	memcpy(m_data, p, m_len);
-
-
-	return TRUE;
-}
-
-BOOL CSipPacket::build_inviter_request(const REQUEST_LINE & request_par,
-	const CPtrViaArray & via_par, int max_forward, HEADER_CONTACT & contact_par,
-	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
-	const HEADER_CSEQ & cseq, const CSDP & sdp, const CString & auth_string,
-	const CString & optional_att)
-{
-	CString packet, str_temp, str_sdp;
-
-	//request line
-	str_temp = request_par.to_string();
-	packet += str_temp;
-
-	//packet header
-	//via
-	for (int i = 0; i < via_par.GetSize(); i++)
-	{
-		if (via_par.GetAt(i) != NULL)
-		{
-			str_temp = via_par.GetAt(i)->to_string();
-			packet += str_temp;
-		}
-
-	}
-
-	if (max_forward > 0)
-	{
-		str_temp = max_forward_to_string(max_forward);
-		packet += str_temp;
-	}
-
-	//contact
-	str_temp = contact_par.to_string();
-	packet += str_temp;
-	//to
-	str_temp = to_par.to_string();
-	packet += str_temp;
-	//from
-	str_temp = from_par.to_string();
-	packet += str_temp;
-	//call_id
-	str_temp = call_id_to_string(call_id);
-	packet += str_temp;
-	//cseq
-	str_temp = cseq.to_string();
-	packet += str_temp;
-	//auth
-	if (!auth_string.IsEmpty())
-		packet += auth_string;
-	//content
-	str_sdp = sdp.to_string();
-	str_temp.Format(_T("Content-Type: application/sdp\r\nContent-Length: %d\r\n"),
-		str_sdp.GetLength());
-	packet += str_temp;
-
-	if (!optional_att.IsEmpty())
-		packet += optional_att;
-
-	packet += _T("\r\n"); //message header½áÊø·û
-
-	//sdp
-	packet += str_sdp;
-
-
-
-
-	char *p = NULL;
-	USES_CONVERSION;
-	p = T2A(packet);
-	if (NULL == p)
-		return FALSE;
-
-	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
-	memset(m_data, 0, PACK_SIZE);
-	memcpy(m_data, p, m_len);
-
-
-	return TRUE;
-}
-
-BOOL CSipPacket::build_ack_request(const REQUEST_LINE & request_par,
-	const CPtrViaArray & via_par, int max_forward, HEADER_ROUTE * route,
-	HEADER_CONTACT * contact_par, const HEADER_TO & to_par, const HEADER_FROM & from_par,
-	const CString & call_id, const HEADER_CSEQ & cseq, const CString & auth_string,
-	const CString & optional_att)
-{
-	CString packet, str_temp, str_sdp;
-
-	//request line
-	str_temp = request_par.to_string();
-	packet += str_temp;
-
-	//packet header
-	//via
-	for (int i = 0; i < via_par.GetSize(); i++)
-	{
-		if (via_par.GetAt(i) != NULL)
-		{
-			str_temp = via_par.GetAt(i)->to_string();
-			packet += str_temp;
-		}
-
-	}
-
-	if (max_forward > 0)
-	{
-		str_temp = max_forward_to_string(max_forward);
-		packet += str_temp;
-	}
-
-	//route
-	if (NULL != route)
-	{
-		str_temp = route->to_string();
-		packet += str_temp;
-	}
-
-
-	//contact
-	if (contact_par != NULL)
-	{
-		str_temp = contact_par->to_string();
-		packet += str_temp;
-	}
-	//to
-	str_temp = to_par.to_string();
-	packet += str_temp;
-	//from
-	str_temp = from_par.to_string();
-	packet += str_temp;
-	//call_id
-	str_temp = call_id_to_string(call_id);
-	packet += str_temp;
-	//cseq
-	str_temp = cseq.to_string();
-	packet += str_temp;
-	//auth
-	if (!auth_string.IsEmpty())
-		packet += auth_string;
-
-	if (!optional_att.IsEmpty())
-		packet += optional_att;
-
-
-	packet += _T("\r\n"); //message header½áÊø·û
-
-
-	char *p = NULL;
-	USES_CONVERSION;
-	p = T2A(packet);
-	if (NULL == p)
-		return FALSE;
-
-	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
-	memset(m_data, 0, PACK_SIZE);
-	memcpy(m_data, p, m_len);
-
-
-	return TRUE;
-}
-
-BOOL CSipPacket::build_bye_request(const REQUEST_LINE & request_par, const CPtrViaArray & via_par,
-	int max_forward, HEADER_ROUTE * route, HEADER_CONTACT & contact_par, const HEADER_TO & to_par,
-	const HEADER_FROM & from_par, const CString & call_id, const HEADER_CSEQ & cseq,
-	const CString &auth_string, const CString & optional_att)
-{
-
-	CString packet, str_temp, str_sdp;
-
-	//request line
-	str_temp = request_par.to_string();
-	packet += str_temp;
-
-	//packet header
-	//via
-	for (int i = 0; i < via_par.GetSize(); i++)
-	{
-		if (via_par.GetAt(i) != NULL)
-		{
-			str_temp = via_par.GetAt(i)->to_string();
-			packet += str_temp;
-		}
-
-	}
-
-	if (max_forward > 0)
-	{
-		str_temp = max_forward_to_string(max_forward);
-		packet += str_temp;
-	}
-
-	//route
-	if (NULL != route)
-	{
-		str_temp = route->to_string();
-		packet += str_temp;
-	}
-
-
-	//contact
-	str_temp = contact_par.to_string();
-	packet += str_temp;
-	//to
-	str_temp = to_par.to_string();
-	packet += str_temp;
-	//from
-	str_temp = from_par.to_string();
-	packet += str_temp;
-	//call_id
-	str_temp = call_id_to_string(call_id);
-	packet += str_temp;
-	//cseq
-	str_temp = cseq.to_string();
-	packet += str_temp;
-	//auth
-	if (!auth_string.IsEmpty())
-		packet += auth_string;
-
-	if (!optional_att.IsEmpty())
-		packet += optional_att;
-
-
-	packet += _T("\r\n"); //message header½áÊø·û
-
-
-	char *p = NULL;
-	USES_CONVERSION;
-	p = T2A(packet);
-	if (NULL == p)
-		return FALSE;
-
-	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
-	memset(m_data, 0, PACK_SIZE);
-	memcpy(m_data, p, m_len);
-
-
-	return TRUE;
-
-
-
-}
-
-BOOL CSipPacket::build_status(STATUS_CODE code, const CPtrViaArray & via_par,
-	int max_forward, HEADER_ROUTE * route, HEADER_CONTACT & contact_par,
-	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
-	const HEADER_CSEQ & cseq, const CString & optional_att)
-{
-
-
-
-	CString packet, str_temp, str_sdp;
-
-	//request line
-	str_temp = status_code_to_string(code);
-	packet += str_temp;
-
-	//packet header
-	//via
-	for (int i = 0; i < via_par.GetSize(); i++)
-	{
-		if (via_par.GetAt(i) != NULL)
-		{
-			str_temp = via_par.GetAt(i)->to_string();
-			packet += str_temp;
-		}
-
-	}
-
-	if (max_forward > 0)
-	{
-		str_temp = max_forward_to_string(max_forward);
-		packet += str_temp;
-	}
-
-	//route
-	if (NULL != route)
-	{
-		str_temp = route->to_string();
-		packet += str_temp;
-	}
-
-
-	//contact
-	str_temp = contact_par.to_string();
-	packet += str_temp;
-	//to
-	str_temp = to_par.to_string();
-	packet += str_temp;
-	//from
-	str_temp = from_par.to_string();
-	packet += str_temp;
-	//call_id
-	str_temp = call_id_to_string(call_id);
-	packet += str_temp;
-	//cseq
-	str_temp = cseq.to_string();
-	packet += str_temp;
-
-	if (!optional_att.IsEmpty())
-		packet += optional_att;
-
-
-	packet += _T("\r\n"); //message header½áÊø·û
-
-
-	char *p = NULL;
-	USES_CONVERSION;
-	p = T2A(packet);
-	if (NULL == p)
-		return FALSE;
-
-	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
-	memset(m_data, 0, PACK_SIZE);
-	memcpy(m_data, p, m_len);
-
-
-	return TRUE;
-
-
-
-	return 0;
-}
+//CString CSipPacket::max_forward_to_string(int max_forward)
+//{
+//	CString string;
+//
+//	string.Format(_T("Max-Forwards: %d\r\n"), max_forward);
+//
+//	return string;
+//}
+//
+//CString CSipPacket::call_id_to_string(const CString call_id)
+//{
+//	CString string;
+//
+//	string.Format(_T("Call-ID: %s\r\n"), call_id);
+//
+//	return string;
+//}
+//
+//CString CSipPacket::status_code_to_string(STATUS_CODE code)
+//{
+//	CString str_line;
+//	
+//	switch (code)
+//	{
+//	case Trying:
+//		str_line.Format(_T("SIP/2.0 100 Trying\r\n"));
+//		break;
+//	case Ringing:
+//		str_line.Format(_T("SIP/2.0 180 Ringing\r\n"));
+//		break;
+//	case OK:
+//		str_line.Format(_T("SIP/2.0 200 OK\r\n"));
+//		break;
+//	case Unauthorized:
+//		str_line.Format(_T("SIP/2.0 401 OK\r\n"));
+//		break;
+//	case Proxy_Authentication:
+//		str_line.Format(_T("SIP/2.0 407 OK\r\n"));
+//		break;
+//	default:
+//		break;
+//	}
+//	
+//	return str_line;
+//}
+//
+//BOOL CSipPacket::add_auth(const CString & auth)
+//{
+//	if (NULL == m_data || auth.IsEmpty())
+//		return FALSE;
+//
+//	//ÐÞ¸Ävia branch
+//	CString str_packet, packet_L, packet_R, branch;
+//	int i = 0, j = 0;
+//
+//	branch = CSipPacket::build_via_branch();
+//	if (branch.IsEmpty())
+//		return FALSE;
+//
+//	str_packet = m_data;
+//	i = str_packet.Find(_T("branch"));
+//	if (i < 0)
+//		return FALSE;
+//	i += strlen("branch=");
+//	j = i;
+//	while (j < str_packet.GetLength())
+//	{
+//		if (';' == str_packet.GetAt(j) || '\r' == str_packet.GetAt(j))
+//			break;
+//		j++;
+//	}
+//	packet_L = str_packet.Left(i);
+//	packet_R = str_packet.Right(str_packet.GetLength() - j);
+//
+//	str_packet = packet_L + branch + packet_R;
+//
+//	//Ìí¼Óauth
+//	i = str_packet.Find(_T("\r\n\r\n"));
+//	if (i < 0)
+//		return FALSE;
+//	i += 2;
+//	str_packet.Insert(i, auth);
+//
+//	char *p = NULL;
+//	USES_CONVERSION;
+//	p = T2A(str_packet);
+//	if (NULL == p)
+//		return FALSE;
+//
+//	str_packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = str_packet.GetLength();
+//	memset(m_data, 0, PACK_SIZE);
+//	memcpy(m_data, p, m_len);
+//
+//
+//
+//
+//	return TRUE;
+//}
+//
+//int CSipPacket::from_buffer(char * buffer, int buffer_len)
+//{
+//	if (NULL == buffer || buffer_len <= 0)
+//		return -1;
+//
+//	buffer_len > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = buffer_len;
+//
+//	memcpy(m_data, buffer, m_len);
+//		
+//	return m_len;
+//}
+//
+//int CSipPacket::get_data(BYTE * buf, int buf_size)
+//{
+//	if (NULL == buf || buf_size < m_len + 1)
+//		return -1;
+//
+//	memset(buf, 0, buf_size);
+//	memcpy(buf, m_data, m_len);
+//
+//
+//	return m_len;
+//}
+//
+//CString CSipPacket::get_data()
+//{
+//	CString data;
+//
+//
+//	if (m_data != NULL)
+//		data = m_data;
+//
+//	return data;
+//}
+//
+//BOOL CSipPacket::build_register_request(const REQUEST_LINE & request_par,
+//	const CPtrViaArray & via_par, int max_forward, HEADER_CONTACT & contact_par,
+//	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
+//	const HEADER_CSEQ & cseq, const CString & auth_string, const CString & optional_att)
+//{
+//	CString packet, str_temp, str_sdp;
+//
+//	//request line
+//	str_temp = request_par.to_string();
+//	packet += str_temp;
+//
+//	//packet header
+//	//via
+//	for (int i = 0; i < via_par.GetSize(); i++)
+//	{
+//		if (via_par.GetAt(i) != NULL)
+//		{
+//			str_temp = via_par.GetAt(i)->to_string();
+//			packet += str_temp;
+//		}
+//
+//	}
+//
+//
+//	if (max_forward > 0)
+//	{
+//		str_temp = max_forward_to_string(max_forward);
+//		packet += str_temp;
+//	}
+//
+//	//route
+//	//if (NULL != route)
+//	//{
+//	//	str_temp = route->to_string();
+//	//	packet += str_temp;
+//	//}
+//
+//
+//	//contact
+//	str_temp = contact_par.to_string();
+//	packet += str_temp;
+//	//to
+//	str_temp = to_par.to_string();
+//	packet += str_temp;
+//	//from
+//	str_temp = from_par.to_string();
+//	packet += str_temp;
+//	//call_id
+//	str_temp = call_id_to_string(call_id);
+//	packet += str_temp;
+//	//cseq
+//	str_temp = cseq.to_string();
+//	packet += str_temp;
+//	//auth
+//	if (!auth_string.IsEmpty())
+//		packet += auth_string;
+//
+//	if(!optional_att.IsEmpty())
+//		packet += optional_att;
+//
+//
+//	packet += _T("\r\n"); //message header½áÊø·û
+//
+//
+//	char *p = NULL;
+//	USES_CONVERSION;
+//	p = T2A(packet);
+//	if (NULL == p)
+//		return FALSE;
+//
+//	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+//	memset(m_data, 0, PACK_SIZE);
+//	memcpy(m_data, p, m_len);
+//
+//
+//	return TRUE;
+//}
+//
+//BOOL CSipPacket::build_inviter_request(const REQUEST_LINE & request_par,
+//	const CPtrViaArray & via_par, int max_forward, HEADER_CONTACT & contact_par,
+//	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
+//	const HEADER_CSEQ & cseq, const CSDP & sdp, const CString & auth_string,
+//	const CString & optional_att)
+//{
+//	CString packet, str_temp, str_sdp;
+//
+//	//request line
+//	str_temp = request_par.to_string();
+//	packet += str_temp;
+//
+//	//packet header
+//	//via
+//	for (int i = 0; i < via_par.GetSize(); i++)
+//	{
+//		if (via_par.GetAt(i) != NULL)
+//		{
+//			str_temp = via_par.GetAt(i)->to_string();
+//			packet += str_temp;
+//		}
+//
+//	}
+//
+//	if (max_forward > 0)
+//	{
+//		str_temp = max_forward_to_string(max_forward);
+//		packet += str_temp;
+//	}
+//
+//	//contact
+//	str_temp = contact_par.to_string();
+//	packet += str_temp;
+//	//to
+//	str_temp = to_par.to_string();
+//	packet += str_temp;
+//	//from
+//	str_temp = from_par.to_string();
+//	packet += str_temp;
+//	//call_id
+//	str_temp = call_id_to_string(call_id);
+//	packet += str_temp;
+//	//cseq
+//	str_temp = cseq.to_string();
+//	packet += str_temp;
+//	//auth
+//	if (!auth_string.IsEmpty())
+//		packet += auth_string;
+//	//content
+//	str_sdp = sdp.to_string();
+//	str_temp.Format(_T("Content-Type: application/sdp\r\nContent-Length: %d\r\n"),
+//		str_sdp.GetLength());
+//	packet += str_temp;
+//
+//	if (!optional_att.IsEmpty())
+//		packet += optional_att;
+//
+//	packet += _T("\r\n"); //message header½áÊø·û
+//
+//	//sdp
+//	packet += str_sdp;
+//
+//
+//
+//
+//	char *p = NULL;
+//	USES_CONVERSION;
+//	p = T2A(packet);
+//	if (NULL == p)
+//		return FALSE;
+//
+//	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+//	memset(m_data, 0, PACK_SIZE);
+//	memcpy(m_data, p, m_len);
+//
+//
+//	return TRUE;
+//}
+//
+//BOOL CSipPacket::build_ack_request(const REQUEST_LINE & request_par,
+//	const CPtrViaArray & via_par, int max_forward, HEADER_ROUTE * route,
+//	HEADER_CONTACT * contact_par, const HEADER_TO & to_par, const HEADER_FROM & from_par,
+//	const CString & call_id, const HEADER_CSEQ & cseq, const CString & auth_string,
+//	const CString & optional_att)
+//{
+//	CString packet, str_temp, str_sdp;
+//
+//	//request line
+//	str_temp = request_par.to_string();
+//	packet += str_temp;
+//
+//	//packet header
+//	//via
+//	for (int i = 0; i < via_par.GetSize(); i++)
+//	{
+//		if (via_par.GetAt(i) != NULL)
+//		{
+//			str_temp = via_par.GetAt(i)->to_string();
+//			packet += str_temp;
+//		}
+//
+//	}
+//
+//	if (max_forward > 0)
+//	{
+//		str_temp = max_forward_to_string(max_forward);
+//		packet += str_temp;
+//	}
+//
+//	//route
+//	if (NULL != route)
+//	{
+//		str_temp = route->to_string();
+//		packet += str_temp;
+//	}
+//
+//
+//	//contact
+//	if (contact_par != NULL)
+//	{
+//		str_temp = contact_par->to_string();
+//		packet += str_temp;
+//	}
+//	//to
+//	str_temp = to_par.to_string();
+//	packet += str_temp;
+//	//from
+//	str_temp = from_par.to_string();
+//	packet += str_temp;
+//	//call_id
+//	str_temp = call_id_to_string(call_id);
+//	packet += str_temp;
+//	//cseq
+//	str_temp = cseq.to_string();
+//	packet += str_temp;
+//	//auth
+//	if (!auth_string.IsEmpty())
+//		packet += auth_string;
+//
+//	if (!optional_att.IsEmpty())
+//		packet += optional_att;
+//
+//
+//	packet += _T("\r\n"); //message header½áÊø·û
+//
+//
+//	char *p = NULL;
+//	USES_CONVERSION;
+//	p = T2A(packet);
+//	if (NULL == p)
+//		return FALSE;
+//
+//	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+//	memset(m_data, 0, PACK_SIZE);
+//	memcpy(m_data, p, m_len);
+//
+//
+//	return TRUE;
+//}
+//
+//BOOL CSipPacket::build_bye_request(const REQUEST_LINE & request_par, const CPtrViaArray & via_par,
+//	int max_forward, HEADER_ROUTE * route, HEADER_CONTACT & contact_par, const HEADER_TO & to_par,
+//	const HEADER_FROM & from_par, const CString & call_id, const HEADER_CSEQ & cseq,
+//	const CString &auth_string, const CString & optional_att)
+//{
+//
+//	CString packet, str_temp, str_sdp;
+//
+//	//request line
+//	str_temp = request_par.to_string();
+//	packet += str_temp;
+//
+//	//packet header
+//	//via
+//	for (int i = 0; i < via_par.GetSize(); i++)
+//	{
+//		if (via_par.GetAt(i) != NULL)
+//		{
+//			str_temp = via_par.GetAt(i)->to_string();
+//			packet += str_temp;
+//		}
+//
+//	}
+//
+//	if (max_forward > 0)
+//	{
+//		str_temp = max_forward_to_string(max_forward);
+//		packet += str_temp;
+//	}
+//
+//	//route
+//	if (NULL != route)
+//	{
+//		str_temp = route->to_string();
+//		packet += str_temp;
+//	}
+//
+//
+//	//contact
+//	str_temp = contact_par.to_string();
+//	packet += str_temp;
+//	//to
+//	str_temp = to_par.to_string();
+//	packet += str_temp;
+//	//from
+//	str_temp = from_par.to_string();
+//	packet += str_temp;
+//	//call_id
+//	str_temp = call_id_to_string(call_id);
+//	packet += str_temp;
+//	//cseq
+//	str_temp = cseq.to_string();
+//	packet += str_temp;
+//	//auth
+//	if (!auth_string.IsEmpty())
+//		packet += auth_string;
+//
+//	if (!optional_att.IsEmpty())
+//		packet += optional_att;
+//
+//
+//	packet += _T("\r\n"); //message header½áÊø·û
+//
+//
+//	char *p = NULL;
+//	USES_CONVERSION;
+//	p = T2A(packet);
+//	if (NULL == p)
+//		return FALSE;
+//
+//	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+//	memset(m_data, 0, PACK_SIZE);
+//	memcpy(m_data, p, m_len);
+//
+//
+//	return TRUE;
+//
+//
+//
+//}
+//
+//BOOL CSipPacket::build_status(STATUS_CODE code, const CPtrViaArray & via_par,
+//	int max_forward, HEADER_ROUTE * route, HEADER_CONTACT & contact_par,
+//	const HEADER_TO & to_par, const HEADER_FROM & from_par, const CString & call_id,
+//	const HEADER_CSEQ & cseq, const CString & optional_att)
+//{
+//
+//
+//
+//	CString packet, str_temp, str_sdp;
+//
+//	//request line
+//	str_temp = status_code_to_string(code);
+//	packet += str_temp;
+//
+//	//packet header
+//	//via
+//	for (int i = 0; i < via_par.GetSize(); i++)
+//	{
+//		if (via_par.GetAt(i) != NULL)
+//		{
+//			str_temp = via_par.GetAt(i)->to_string();
+//			packet += str_temp;
+//		}
+//
+//	}
+//
+//	if (max_forward > 0)
+//	{
+//		str_temp = max_forward_to_string(max_forward);
+//		packet += str_temp;
+//	}
+//
+//	//route
+//	if (NULL != route)
+//	{
+//		str_temp = route->to_string();
+//		packet += str_temp;
+//	}
+//
+//
+//	//contact
+//	str_temp = contact_par.to_string();
+//	packet += str_temp;
+//	//to
+//	str_temp = to_par.to_string();
+//	packet += str_temp;
+//	//from
+//	str_temp = from_par.to_string();
+//	packet += str_temp;
+//	//call_id
+//	str_temp = call_id_to_string(call_id);
+//	packet += str_temp;
+//	//cseq
+//	str_temp = cseq.to_string();
+//	packet += str_temp;
+//
+//	if (!optional_att.IsEmpty())
+//		packet += optional_att;
+//
+//
+//	packet += _T("\r\n"); //message header½áÊø·û
+//
+//
+//	char *p = NULL;
+//	USES_CONVERSION;
+//	p = T2A(packet);
+//	if (NULL == p)
+//		return FALSE;
+//
+//	packet.GetLength() > PACK_SIZE - 1 ? m_len = PACK_SIZE - 1 : m_len = packet.GetLength();
+//	memset(m_data, 0, PACK_SIZE);
+//	memcpy(m_data, p, m_len);
+//
+//
+//	return TRUE;
+//
+//
+//
+//	return 0;
+//}
 
 
 

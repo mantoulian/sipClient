@@ -631,7 +631,7 @@ DWORD CRtpPlayer::DoDecode()
 			//if (pack->enType == video)
 			//{
 				//提取rtp中的视频流
-				if (!rtpPackToH264((char *)pack->pData, pack->usPackLen, buf, &buf_len))
+				if (!rtpPackToH264((char *)pack->pData, pack->uLen, buf, &buf_len))
 					continue;
 				if (FALSE == m_sps_pps_ok)//sdp中没有sps pps，需要在h264流中获取
 				{
@@ -702,25 +702,52 @@ DWORD CRtpPlayer::DoDecode()
 //	return TRUE;
 //}
 
-CRtpPacket::CRtpPacket()
-{
-	//m_enType = audio;
-	m_usPackLen = 0;
-	m_pData = NULL;
-}
-
-//CRtpPacket::CRtpPacket(MEDIA_TYPE type, WORD usSize)
-CRtpPacket::CRtpPacket(WORD usSize)
-{
-	m_pData = (BYTE *)calloc(1, usSize);
-	if(m_pData)
-
-
-	//m_enType = type;
-	m_usPackLen = usSize;
-	m_pData = NULL;
-}
-
-CRtpPacket::~CRtpPacket()
-{
-}
+//CRtpPacket::CRtpPacket()
+//{
+//	//m_enType = audio;
+//	m_usPackLen = 0;
+//	m_pData = NULL;
+//}
+//
+////CRtpPacket::CRtpPacket(MEDIA_TYPE type, WORD usSize)
+//CRtpPacket::CRtpPacket(WORD usSize)
+//{
+//	m_pData = (BYTE *)calloc(1, usSize);
+//	if(m_pData)
+//
+//
+//	//m_enType = type;
+//	m_usPackLen = usSize;
+//	m_pData = NULL;
+//}
+//
+//CRtpPacket::~CRtpPacket()
+//{
+//}
+//
+//CRtpPacketCache2::CRtpPacketCache2(unsigned uArraySize)
+//{
+//	m_pPacket = new RTP_PACKET[uArraySize];
+//	m_uSize = uArraySize;
+//
+//}
+//
+//CRtpPacketCache2::~CRtpPacketCache2()
+//{
+//	if (m_pPacket != NULL)
+//	{
+//		for (int i = 0; i < m_uSize; i++)
+//		{
+//			if (m_pPacket[i].pData != NULL)
+//			{
+//				delete m_pPacket[i].pData;
+//				m_pPacket[i].pData = NULL;
+//			}
+//		}
+//
+//		delete [] m_pPacket;
+//		m_pPacket = NULL;
+//	}
+//
+//	m_uSize = 0;
+//}

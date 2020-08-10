@@ -506,6 +506,10 @@ CString CSDP::to_string() const
 
 }
 
+void CSDP::Clone(CSDP & sdp)
+{
+}
+
 CSDP CSDP::sdp_compare(const CSDP & sdp)
 {
 	CSDP consultSdp;
@@ -523,6 +527,21 @@ CSDP CSDP::sdp_compare(const CSDP & sdp)
 
 
 	return consultSdp;
+}
+
+BOOL CSDP::set_conn(const CString & strConn)
+{
+	return 0;
+}
+
+BOOL CSDP::set_media_conn(int nIndex, const CString & strConn)
+{
+	return 0;
+}
+
+BOOL CSDP::set_media_port(int nIndex, WORD wPort)
+{
+	return 0;
 }
 
 //void CSDP::set_address(CString str_address)
