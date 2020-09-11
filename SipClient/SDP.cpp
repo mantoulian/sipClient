@@ -544,6 +544,15 @@ BOOL CSDP::set_media_port(int nIndex, WORD wPort)
 	return 0;
 }
 
+int CSDP::get_sdp_len()
+{
+
+
+
+
+	return 0;
+}
+
 //void CSDP::set_address(CString str_address)
 //{
 //	m_strAddress = str_address;

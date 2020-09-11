@@ -23,7 +23,7 @@ typedef struct call_info
 	CString id;
 	SIP_URI contact_uri;
 
-	CSipPacket *pReqMess;
+	CSipPacket *pReqMess; 
 
 
 
@@ -64,19 +64,19 @@ typedef struct call_info
 //	static DWORD WINAPI recv_video_media_thread(LPVOID lpParam);
 //	DWORD do_send_media();
 //	DWORD do_recv_video_media();
-//	DWORD do_recv_audio_media();
+//	DWORD do_recv_audio_media();  
 
 }CALL_INFO;
 
 
-typedef enum client_status
-{
-	uninitialized,
-	init_ok,
-	wait,
-	inviteing,
-	calling,
-}CLIENT_STATUS;
+//typedef enum client_status
+//{
+//	uninitialized,
+//	init_ok,
+//	wait,
+//	inviteing,
+//	calling,
+//}CLIENT_STATUS;
 
 //typedef int(*incoming_call_back)(CSipPacket *packet_info);
 
@@ -86,8 +86,8 @@ typedef int(*incoming_call)(CCall *pCall);
 
 typedef struct CallOpParam
 {
-	BOOL audio;
-	BOOL video;
+	BOOL audio = FALSE;
+	BOOL video = FALSE;
 	WORD wAudioPort = 0;
 	WORD wVideoPort = 0;
 	CSDP *pSdp = NULL;
@@ -100,50 +100,70 @@ class AFX_EXT_CLASS CCall
 {
 
 public:
-
-	CCall();
-	CCall(CSipClient &SipClient);
+	//CCall();
+	CCall(CSipClient *SipClient);
 	~CCall();
 
-	void make_call(const CString & strSipUrl, CallOpParam & prm);
-	//void ans wer(const CallOpParam &prm) throw(Error);
-	//void hangup(const CallOpParam &prm) throw(Error);
+	void proc_array_add_packet(CSipPacket &packet);
+
+	void make_call(const SIP_URI &stuContact, const CallOpParam & prm);
+	void answer(const CallOpParam &prm) ;
+	void hangup(const CallOpParam &prm) ;
 
 
-	BOOL get_call_info(CALL_INFO & callInfo);
 	CALL_INFO* get_call_info();
 
+	 
 
-	CSipPacket* get_req_mess();
+protected:
+	void make_call_auth(const SIP_URI &stuContact, CallOpParam & prm, const CString &strAuth);
 
+	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
+	DWORD DoSipPacketProcess();
+	void proc_sip_mess(CSipPacket *pSipMess);//解析收到的sip消息
+
+private:
+	BOOL proc_recv_inv_ok(CSipPacket *pPacket);
 
 
 
 
 private:
-	CALL_STATUS emStatus;
-	//CString strname;
-	CString strCallId;
-	SIP_URI stContactUri; 
-	CSDP *pSdp;
+
+	CMutex		m_recv_lock;
+	CTypedPtrArray<CPtrArray, CSipPacket*> m_arrSipProcArray;
+
+	CRtpPacketCache *m_pRecvCache;
+	CRtpPacketCache *m_pSendCache;
+
+	CALL_STATUS m_emStatus;
+	CString m_strCallId;
+	SIP_URI m_stContactUri; 
+	CSDP *m_pSdp;
+
+	CSipPacket pReqMess;
+
+	CString m_strUser;
+	CString m_strLocalHost;
+	WORD m_wSipPort;
+
+
+	CSipClient* m_pSipClient;
+
 	CNetSocket *pUdpAudio;
 	CNetSocket *pUdpVideo;
 	HANDLE pSendHandle;
 	HANDLE pRecvAudioHandle;
 	HANDLE pRecvVideoHandle;
-	CRtpPacketCache *pRecvCache;
-	CRtpPacketCache *pSendCache;
-
-	CSipPacket pReqMess;
-
-	CString m_strUser;
+	static DWORD WINAPI ReceiveVideoThread(LPVOID lpParam);
+	static DWORD WINAPI ReceiveAudioThread(LPVOID lpParam);
 
 
 
 
 	//CSipPacketInfo request_info;
 
-};
+}; 
 
 
 
@@ -158,18 +178,38 @@ private:
 class AFX_EXT_CLASS CSipClient
 {
 public:
-	CSipClient();
+	//CSipClient();
 	~CSipClient();
 
+	static CSipClient& get_instance()
+	{
+		static CSipClient instance;
+		return instance;
+	}
 
 	BOOL init(const CString &strServerIP, WORD wServerPort, WORD wSipPort = 0);
 	BOOL register_account(const CString &strUser, const CString &strPasswd);
 
+	void push_call(CCall *pCall);
+	int find_call(const CString &strCallId);
+
+	virtual int onIncomingCall();
+
+	BOOL set_sdp(const CSDP &sdp);
+	CSDP get_sdp();
+
+	void send_packet(CSipPacket &packet);
+
+
+
+
 	//呼叫成功返回一个call实例
 	//CCall* make_call(const CString &strCallName, WORD wAudioPort = 0, WORD wVideoPort = 0);
-	CCall* create_call( );
-	void push_call(CCall *pCall); 
-
+	//CCall* create_call( );
+	//void set_coming_call_function(incoming_call function);
+	//CLIENT_STATUS get_client_status(); 
+private:
+	CSipClient() {};
 
 
 
@@ -180,18 +220,11 @@ public:
 
 	//BOOL hangup(CSipPacketInfo *packet_info);
 	//BOOL hangup(); 
-
 	//BOOL call_answer(CSipPacketInfo *packet_info);
-
-	
 	//void set_send_cache(CRtpPacketCache *cache);
 	//CRtpPacketCache* get_recv_cache();
 
-	void set_coming_call_function(incoming_call function);
-	CLIENT_STATUS get_client_status();
 
-	BOOL set_sdp(const CSDP &sdp);
-	CSDP get_sdp();
 
 
 protected:
@@ -200,10 +233,17 @@ protected:
 	//	const CString &auth, const CString &optiona);
 	//BOOL build_ack_message(CSipPacket &packet, CSipPacketInfo *request_info);
 	//BOOL build_bye_message(CSipPacket &packet);
-	BOOL send_packet(CSipPacket *packet);
-	CString build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacketInfo * status_info);
-	CString build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacket * pStuMess);
-	BOOL build_auth_string(const HEADER_AUTH & stHdrAuth, REQUEST_METHOD request_method, CSipPacket * pStuMess);
+	//BOOL send_packet(CSipPacket *packet);
+	//CString build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacketInfo * status_info);
+	//CString build_auth_string(REQUEST_METHOD request_method, STATUS_CODE code, CSipPacket * pStuMess);
+	/*BOOL build_auth_string(const HEADER_AUTH & stHdrAuth, REQUEST_METHOD request_method,
+	CSipPacket * pStuMess);*/
+
+
+	CString calculate_response_digest(const CString &strRealm, const CString &strNonce,
+		REQUEST_METHOD emMethod, SIP_URI stuUri);
+
+
 private:
 	static DWORD WINAPI ReceiveSipThread(LPVOID lpParam);
 	static DWORD WINAPI SipPacketProcessThread(LPVOID lpParam);
@@ -219,26 +259,28 @@ private:
 	//void proc_status_bye_ok(CSipPacketInfo *staInfo);
 	//void proc_request_invite();
 
-	void proc_invite_proxy_auth(CSipPacketInfo *status_inv);
-	void proc_invite_proxy_auth(CSipPacket * pInvAuthMess);
-	void proc_invite_request(CSipPacketInfo *inv_request);
-	void proc_intite_status_ok(CSipPacketInfo *inv_status);
+	//void proc_invite_proxy_auth(CSipPacketInfo *status_inv);
+	//void proc_invite_proxy_auth(CSipPacket * pInvAuthMess);
+	//void proc_invite_request(CSipPacketInfo *inv_request);
+	//void proc_intite_status_ok(CSipPacketInfo *inv_status);
 
-	void proc_intite_status_ok(CSipPacket *pInvOkMess);
+	//void proc_intite_status_ok(CSipPacket *pInvOkMess);
 
 
-	BOOL compare_packet(const CSipPacketInfo &request, const CSipPacketInfo &status);
-	BOOL compare_packet(CSipPacket * request, CSipPacket * status);
-
-	CCall* find_call(const CString &strCallId);
+	//BOOL compare_packet(const CSipPacketInfo &request, const CSipPacketInfo &status);
+	//BOOL compare_packet(CSipPacket * request, CSipPacket * status);
+	 
 
 
 private:
 	CMutex		m_recv_lock;
-	CTypedPtrArray<CPtrArray, CSipPacket*> m_recv_packet_arr;
+	CTypedPtrArray<CPtrArray, CSipPacket*> m_arrRecvPack;
+
+	CMutex		m_send_lock;
+	CTypedPtrArray<CPtrArray, CSipPacket*> m_arrSendPack;
+
 	CTypedPtrArray<CPtrArray, CCall*>m_arrCalls;
 
-	CTypedPtrArray<CPtrArray, CSipPacket*> m_arrReqMess;
 
 	
 	//CMutex		m_req_info_lock;
@@ -247,7 +289,7 @@ private:
 	//user
 	CString m_user;
 	CString m_password;
-	//server
+	 //server
 
 	CString m_sev_addr;
 	unsigned short m_sev_port;
@@ -275,10 +317,10 @@ private:
 
 	//int m_auth_count; //认证次数
 	//clinet
-	CCall m_call;
-	CLIENT_STATUS m_client_status;
+	//CCall m_call;
+	//CLIENT_STATUS m_client_status;
 	BOOL m_bwork;
-	incoming_call_back m_incoming_call;
+	//incoming_call_back m_incoming_call;
 	CSDP m_sdp;
 	CALL_INFO *m_call_info;
 };

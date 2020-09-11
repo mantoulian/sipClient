@@ -16,13 +16,13 @@
 CSipClient::CSipClient()
 {
 	m_bwork = FALSE;
-	m_client_status = uninitialized;
+	//m_client_status = uninitialized;
 
 
 	m_send_cache = NULL;
 	m_recv_h = NULL;
 	m_proc_h = NULL;
-	m_incoming_call = NULL;
+	//m_incoming_call = NULL;
 	m_call_info = NULL;
 }
 
@@ -98,7 +98,7 @@ BOOL CSipClient::init(const CString &sev_addr, WORD sev_port, WORD l_sip_port)
 	m_reg_cseq = 0;
 	m_inv_cseq = 0;
 
-	m_client_status = init_ok;
+	//m_client_status = init_ok;
 	m_bwork = TRUE;
 
 
@@ -114,8 +114,8 @@ BOOL CSipClient::init(const CString &sev_addr, WORD sev_port, WORD l_sip_port)
 #define REGISTER_NUM	3
 BOOL CSipClient::register_account(const CString &strUser, const CString &strPasswd)
 {
-	if (m_client_status != init_ok )
-		return FALSE;
+	//if (m_client_status != init_ok )
+	//	return FALSE;
 
 
 	CSipPacket  reg_request, reg_status;
@@ -326,8 +326,13 @@ CCall * CSipClient::create_call()
 	return nullptr;
 }
 
+
+
 void CSipClient::push_call(CCall * pCall)
 {
+	if (pCall != NULL)
+		m_arrCalls.Add(pCall);
+
 }
 
 //1 检查本地sdp，2初始化call info，3构建并发送邀请消息
@@ -538,10 +543,10 @@ void CSipClient::push_call(CCall * pCall)
 //	*/
 //}
 
-void CSipClient::set_coming_call_function(incoming_call_back function)
-{
-	m_incoming_call = function;
-}
+//void CSipClient::set_coming_call_function(incoming_call_back function)
+//{
+//	m_incoming_call = function;
+//}
 
 //CRtpPacketCache* CSipClient::get_recv_cache()
 //{
@@ -576,6 +581,16 @@ BOOL CSipClient::set_sdp(const CSDP & sdp)
 	//return TRUE;
 }
 
+int CSipClient::onIncomingCall()
+{
+
+
+
+
+
+	return 0;
+}
+
 CLIENT_STATUS CSipClient::get_client_status()
 {
 	return m_client_status;
@@ -584,6 +599,19 @@ CLIENT_STATUS CSipClient::get_client_status()
 CSDP CSipClient::get_sdp()
 {
 	return m_sdp;
+}
+
+void CSipClient::send_packet(CSipPacket &pPacket)
+{
+
+	CSipPacket *pPack = pPacket.Clone();
+	if (pPack != NULL)
+	{
+		m_send_lock.Lock();
+		m_arrSendPack.Add(pPack);
+		m_send_lock.Unlock();
+	}
+
 }
 
 
@@ -659,20 +687,52 @@ DWORD CSipClient::DoSipPacketProcess()
 	while (m_bwork)
 	{
 		m_recv_lock.Lock();
-		if (m_recv_packet_arr.GetSize() > 0)
+		if (m_arrRecvPack.GetSize() > 0)
 		{
-			packet = m_recv_packet_arr[0];
-			m_recv_packet_arr.RemoveAt(0);
+			packet = m_arrRecvPack[0];
+			m_arrRecvPack.RemoveAt(0);
 		}
 		m_recv_lock.Unlock();
 
 
 		if (packet != NULL)
 		{
-			proc_sip_mess(packet);
+			SIP_LINE *pLine = packet->get_line();
+			if (pLine != NULL)
+			{
+				if (pLine->emType == sip_status && pLine->stStatusLine != NULL)
+				{
+					CString *strCallID;
+					int nCallIndex = 0;
+					strCallID = (CString *)packet->find_hdr_by_name(H_CALL_ID);
+					nCallIndex = find_call(*strCallID);
+					if (nCallIndex >= 0)
+						m_arrCalls[nCallIndex]->proc_array_add_packet(*packet);
+				}
+				else if(pLine->emType == sip_request && pLine->stReqLine != NULL)
+				{
+					//只处理了来电和bye 请求
+					if (pLine->stReqLine->method == Invite)
+					{
+						onIncomingCall();
+					}
+					else if (pLine->stReqLine->method == Bye)
+					{
+						//
+
+					}
+
+
+				}
+			}
+
+
+
+			//proc_sip_mess(packet);
 			delete packet;
 			packet = NULL;
 		}
+
 		//else
 		//{
 		//	//处理send packet 队列
@@ -1015,9 +1075,19 @@ BOOL builf_auth_response(CString & response, const CString &username, const CStr
 //	return auth;
 //}
 
+CString CSipClient::calculate_response_digest(const CString & strRealm, const CString & strNonce, REQUEST_METHOD emMethod, SIP_URI stuUri)
+{
+	return CString();
+}
+
 BOOL CSipClient::build_auth_string(const HEADER_AUTH &stHdrAuth, REQUEST_METHOD request_method,
 	CSipPacket *pStuMess)
 {
+
+
+
+
+
 	 
 	return FALSE;
 }
@@ -1704,7 +1774,7 @@ BOOL CSipClient::compare_packet(CSipPacket *request, CSipPacketInfo *status)
 	return FALSE;
 }
 
-CCall * CSipClient::find_call(const CString & strCallId)
+int CSipClient::find_call(const CString & strCallId)
 {
 	return nullptr;
 }
@@ -1956,8 +2026,16 @@ void CSipClient::proc_sip_mess(CSipPacket *recv_pack)
 		{
 			//收到通话邀请
 					//proc_invite_request();
-					if (m_incoming_call != NULL)
-						m_incoming_call(recv_pack);
+			//分析sdp
+			//创建call
+			CCall *pIncomingCall = new CCall(this);
+			if (pIncomingCall != NULL)
+			{
+				push_call(pIncomingCall);
+				if (m_incoming_call != NULL)
+					m_incoming_call(recv_pack);
+			}
+
 		}
 		else if (pRecvLineReq->method == Ack)
 		{
@@ -5756,15 +5834,16 @@ BOOL CSipClient::send_packet(CSipPacket *pack)
 //{
 //	return 0;
 //}
+//
 
-CCall::CCall()
-{
+//CCall::CCall()
+//{
+//
+//
+//
+//}
 
-
-
-}
-
-CCall::CCall(CSipClient & SipClient)
+CCall::CCall(CSipClient * SipClient)
 {
 
 
@@ -5776,25 +5855,494 @@ CCall::~CCall()
 
 }
 
-void CCall::make_call(const CString & strSipUrl, CallOpParam & prm)
+//创建inv消息给client
+void CCall::make_call(const SIP_URI &stuContact, const CallOpParam & prm)
 {
-	 
+	if (prm.pSdp == NULL)
+		return;
 
+	CSipPacket InvPacket;
+
+	//build line
+	SIP_LINE line;
+	REQUEST_LINE stuReqLine;
+
+	stuReqLine.method = Invite;
+	stuReqLine.request_uri.user = m_strUser;
+	stuReqLine.request_uri.host = m_strLocalHost;
+	stuReqLine.request_uri.port = 0;
+	line.emType = sip_request;
+	line.stReqLine = &stuReqLine;
+	if (!InvPacket.build_line(line))
+		return;
+
+	//message header
+	//MESSAGE_HDR hdr;
+	HEADER_VIA via;
+	int max_forward;
+	HEADER_FROM from;
+	HEADER_TO to;
+	HEADER_CONTACT contact;
+	HEADER_CSEQ cseq;
+	HEADER_ROUTE route;
+
+
+	via.sent_address = m_strLocalHost;
+	via.sent_port = m_wSipPort;
+	via.recvived_port = 0;
+	via.branch = CSipPacket::build_via_branch();
+	InvPacket.msg_add_hdr(H_VIA, &via);
+
+
+	from.display_user = m_strUser;
+	from.user = m_strUser;
+	from.host = m_strLocalHost;
+	from.tag = CSipPacket::NewGUIDString();
+	InvPacket.msg_add_hdr(H_FROM, &from);
+
+	//message body
+	MESS_BODY body;
+	CSDP sdp;
+
+	prm.pSdp->Clone(sdp);
+	body.type = _T("SDP");
+	body.data = &sdp;
+	if (!InvPacket.build_message_body(body))
+		return;
+
+
+
+	//send
+	if (m_pSipClient != NULL)
+		m_pSipClient->send_packet(InvPacket);
+	
+	m_emStatus = INVITE_SEND;
+}
+
+//
+void CCall::answer(const CallOpParam & prm)
+{
+	//发送200ok消息
+	CSipPacket packet;
+
+	if (m_pSipClient != NULL)
+		m_pSipClient->send_packet(packet);
+
+	ResumeThread(pSendHandle);
+	if (prm.audio)
+		ResumeThread(pRecvAudioHandle);
+	if (prm.video)
+		ResumeThread(pRecvVideoHandle);
+
+
+
+	m_emStatus = INVITE_SDP_OK;
 
 
 }
 
-BOOL CCall::get_call_info(CALL_INFO & callInfo)
+//
+void CCall::hangup(const CallOpParam & prm)
 {
+	//发送bye或者487
+	if (m_emStatus == INVITE_CALLING)//bye
+	{
+
+	}
+	else //487
+	{
+
+	}
+
+
+}
+
+void CCall::proc_array_add_packet(CSipPacket &packet)
+{
+
+	CSipPacket * pNewPacket = packet.Clone();
+	if (pNewPacket != NULL)
+	{
+		m_recv_lock.Lock();
+		m_arrSipProcArray.Add(pNewPacket);
+		m_recv_lock.Unlock();
+	}
+}
+
+CALL_INFO* CCall::get_call_info()
+{
+	CALL_INFO *pCallInfo = NULL;
+
+
+	return pCallInfo;
+}
+
+
+
+void CCall::make_call_auth(const SIP_URI &stuContact, CallOpParam & prm, const CString & strAuth)
+{
+
+
+}
+
+DWORD CCall::SipPacketProcessThread(LPVOID lpParam)
+{
+	CCall *pObject = (CCall*)lpParam;
+	ASSERT(NULL != pObject);
+	return pObject->DoSipPacketProcess();
+
+}
+
+DWORD CCall::DoSipPacketProcess()
+{
+	CSipPacket *pSipPacket = NULL;
+
+
+	//循环处理消息
+	while (m_emStatus!= INVITE_DISCONNECTED)
+	{
+		m_recv_lock.Lock();
+		if (m_arrSipProcArray.GetSize() > 0)
+		{
+			pSipPacket = m_arrSipProcArray[0];
+			m_arrSipProcArray.RemoveAt(0);
+		}
+		m_recv_lock.Unlock();
+
+
+		if (pSipPacket != NULL)
+		{
+			proc_sip_mess(pSipPacket);
+			delete pSipPacket;
+			pSipPacket = NULL;
+		}
+	}
+
+
+
 	return 0;
 }
 
-CALL_INFO * CCall::get_call_info()
+void CCall::proc_sip_mess(CSipPacket * pSipMess)
 {
-	return nullptr;
+	if (pSipMess == NULL)
+		return;
+
+
+	SIP_LINE *line = pSipMess->get_line();
+	if (line == NULL)
+		return;
+
+
+	switch (m_emStatus)
+	{
+	case Uninitialized:
+		break;
+	case INVITE_START:
+		break;
+	case INVITE_SEND://只处理ack和auth  
+		if (line->emType == sip_status)
+		{
+			if (line->stStatusLine == NULL)
+				return;
+			if (line->stStatusLine->code == OK)//收到200
+			{
+				proc_recv_inv_ok(pSipMess);
+			}
+			else if(line->stStatusLine->code == Proxy_Authentication)
+			{
+
+			}
+
+		}
+
+		break;
+	case INVITE_RECV://检查sdp
+		break;
+	case INVITE_SDP_OK:
+		break;
+	case INVITE_ACK_OK:
+		break;
+	case INVITE_CALLING:
+		break;
+	case INVITE_DISCONNECTED:
+		break;
+	}
+
+
+
+	////MESSAGE_TYPE emMessType;
+	//SIP_LINE *stRecvLine = NULL;
+	//stRecvLine = pSipMess->get_line();
+	//if (stRecvLine == NULL || stRecvLine->pData == NULL)
+	//	return;
+
+	//if (stRecvLine->emType == sip_status)
+	//{
+	//	//响应消息，找到对应的请求消息
+	//	void *pHdrData = NULL;
+	//	CSipPacket *pReqMess = NULL;
+	//	SIP_LINE *pReqLine = NULL;
+
+	//	pHdrData = recv_pack->find_hdr_by_name(H_VIA);
+	//	if (pHdrData == NULL)
+	//		return;
+
+	//	pReqMess = find_req_mess(((HEADER_VIA *)pHdrData)->branch);
+	//	if (pReqMess == NULL)
+	//		return;
+
+	//	//跟据req moth
+	//	pReqLine = pReqMess->get_line();
+	//	if (pReqLine == NULL || pReqLine->pData == NULL)
+	//		return;
+	//	REQUEST_METHOD emReqMethod = ((REQUEST_LINE *)pReqLine->pData)->method;
+	//	STATUS_CODE emStatusCode = ((STATUS_LINE*)stRecvLine->pData)->code;
+
+	//	switch (emReqMethod)
+	//	{
+	//	case Register:
+	//		switch (emStatusCode)
+	//		{
+	//		case Trying:
+	//			break;
+	//		case Ringing:
+	//			break;
+	//		case OK:
+	//			break;
+	//		case Unauthorized:
+	//			break;
+	//		case Proxy_Authentication:
+	//			break;
+	//		}
+	//		break;
+	//	case Invite:
+	//		switch (emStatusCode)
+	//		{
+	//		case Trying:
+	//			break;
+	//		case Ringing:
+	//			break;
+	//		case OK:
+	//			//回复ack 传输媒体
+	//			proc_intite_status_ok(recv_pack);
+	//			break;
+	//		case Unauthorized:
+	//			break;
+	//		case Proxy_Authentication:
+	//			proc_invite_proxy_auth(recv_pack);
+	//			break;
+	//		}
+	//		break;
+	//	case Ack:
+	//		switch (emStatusCode)
+	//		{
+	//		case Trying:
+	//			break;
+	//		case Ringing:
+	//			break;
+	//		case OK:
+	//			break;
+	//		case Unauthorized:
+	//			break;
+	//		case Proxy_Authentication:
+	//			break;
+	//		}
+	//		break;
+	//	case Bye:
+	//		switch (emStatusCode)
+	//		{
+	//		case Trying:
+	//			break;
+	//		case Ringing:
+	//			break;
+	//		case OK:
+	//			//结束通话 销毁call 回收资源
+	//			break;
+	//		case Unauthorized:
+	//			break;
+	//		case Proxy_Authentication:
+	//			break;
+	//		}
+	//		break;
+	//	}
+
+
+
+
+	//}
+	//else if (stRecvLine->emType == sip_request)
+	//{
+	//	//收到请求消息，只处理了邀请和bye
+	//	REQUEST_LINE *pRecvLineReq = NULL;
+	//	pRecvLineReq = (REQUEST_LINE *)stRecvLine->pData;
+
+
+	//	if (pRecvLineReq->method == Invite)
+	//	{
+	//		//收到通话邀请
+	//		//proc_invite_request();
+	//		//分析sdp
+	//		//创建call
+	//		CCall *pIncomingCall = new CCall(this);
+	//		if (pIncomingCall != NULL)
+	//		{
+	//			push_call(pIncomingCall);
+	//			if (m_incoming_call != NULL)
+	//				m_incoming_call(recv_pack);
+	//		}
+
+	//	}
+	//	else if (pRecvLineReq->method == Ack)
+	//	{
+
+	//	}
+	//	else if (pRecvLineReq->method == Bye)
+	//	{
+	//		//proc_bye_request(&recv_packet_info);
+	//	}
+
+	//}
+
+
 }
 
-CSipPacket * CCall::get_req_mess()
+//处理收到inv 200 消息
+BOOL CCall::proc_recv_inv_ok(CSipPacket *pPacket)
 {
-	return nullptr;
+
+	if (pPacket == NULL)
+		return FALSE;
+	BOOL ret = FALSE;
+
+
+	//保存sdp
+	MESS_BODY *body = NULL;
+	body = pPacket->get_message_body();
+	if (body == NULL)
+		goto end;
+
+	if (body->type == _T("SDP") && body->data!=NULL)
+	{
+
+		if (m_pSdp != NULL)
+			delete m_pSdp;
+
+		m_pSdp = ((CSDP *)body->data)->Clone;
+
+	}
+
+
+	//发送ack
+
+	CSipPacket AckPacket;
+	SIP_LINE stuMessLine;
+	MESSAGE_HDR stuMessHdr;
+
+
+	AckPacket.build_line(stuMessLine);
+	AckPacket.msg_add_hdr(stuMessHdr);
+
+	if (m_pSipClient != NULL)
+		m_pSipClient->send_packet(AckPacket);
+
+	//创建cache
+	if (m_pRecvCache == NULL)
+	{
+		m_pRecvCache = new CRtpPacketCache();
+		if (m_pRecvCache == NULL)
+			goto end;
+	}
+
+	if (m_pSendCache == NULL)
+	{
+		m_pSendCache = new CRtpPacketCache();
+		if (m_pSendCache == NULL)
+			goto end;
+	}
+
+
+
+	//开始媒体传输
+	for (int i = 0; i < m_pSdp->m_mediaCount; i++)
+	{
+		if (m_pSdp->m_media[i] != NULL)
+		{
+			if (m_pSdp->m_media[i]->desc.media == _T("audio"))
+			{
+				if (NULL == pRecvAudioHandle)
+				{
+					pRecvAudioHandle = ::CreateThread(NULL, 0, ReceiveVideoThread, this, CREATE_SUSPENDED, NULL);
+					ASSERT(NULL != pRecvAudioHandle);
+					if (NULL == pRecvAudioHandle)
+						break;
+
+					ResumeThread(pRecvAudioHandle);
+				}
+			}
+			else if (m_pSdp->m_media[i]->desc.media == _T("video"))
+			{
+				if (NULL == pRecvAudioHandle)
+				{
+					pRecvAudioHandle = ::CreateThread(NULL, 0, ReceiveVideoThread, this, CREATE_SUSPENDED, NULL);
+					ASSERT(NULL != pRecvAudioHandle);
+					if (NULL == pRecvAudioHandle)
+						break;
+
+					ResumeThread(pRecvVideoHandle);
+				}
+			}
+		}
+
+		if (i >= 1)//只处理了前面2和媒体
+			break;
+	}
+
+	ret = TRUE;
+
+end:
+
+	delete_mess_body(body);
+	body = NULL;
+
+	if (!ret)
+	{
+		if (m_pRecvCache != NULL)
+		{
+			delete m_pRecvCache;
+			m_pRecvCache = NULL;
+		}
+
+		if (m_pSendCache != NULL)
+		{
+			delete m_pSendCache;
+			m_pSendCache = NULL;
+		}
+	}
+
+
+	return ret;
+}
+
+DWORD CCall::ReceiveVideoThread(LPVOID lpParam)
+{
+
+
+
+
+
+
+
+	return 0;
+}
+
+DWORD CCall::ReceiveAudioThread(LPVOID lpParam)
+{
+
+
+
+
+
+
+	return 0;
 }

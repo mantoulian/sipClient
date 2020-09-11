@@ -38,6 +38,38 @@ typedef struct rtp_packet
 
 typedef CSmartPtr<RTP_PACKET> CRtpPacketPtr;
 
+//class AFX_EXT_CLASS CRtpPacketCache
+//{
+//public:
+//	CRtpPacketCache() {}
+//
+//	virtual ~CRtpPacketCache() {}
+//
+//	void AddPacket(CRtpPacketPtr packet)
+//	{
+//
+//		CSingleLock TheLock(&m_CacheLock, TRUE);
+//		m_rtpPacketList.AddTail(packet);
+//
+//	}
+//
+//	CRtpPacketPtr GetNextPacket()
+//	{
+//		CSingleLock TheLock(&m_CacheLock, TRUE);
+//		if (m_rtpPacketList.IsEmpty())
+//			return NULL;
+//
+//		return m_rtpPacketList.RemoveHead();
+//	}
+//
+//private:
+//	CMutex m_CacheLock;
+//	CList<CRtpPacketPtr> m_rtpPacketList;
+//};
+
+
+#define RTP_CACHE_SIZE	1000;
+
 class AFX_EXT_CLASS CRtpPacketCache
 {
 public:
@@ -49,6 +81,8 @@ public:
 	{
 
 		CSingleLock TheLock(&m_CacheLock, TRUE);
+		if (m_rtpPacketList.GetSize() >= RTP_CACHE_SIZE)
+			m_rtpPacketList.RemoveHead();
 		m_rtpPacketList.AddTail(packet);
 
 	}

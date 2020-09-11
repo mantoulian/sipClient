@@ -64,6 +64,16 @@ BOOL CSipPacket::get_line(SIP_LINE & unLine)
 	return 0;
 }
 
+BOOL CSipPacket::build_line(MESSAGE_TYPE emType, SIP_LINE unLine)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_line(SIP_LINE unLine)
+{
+	return 0;
+}
+
 SIP_LINE * CSipPacket::get_line()
 {
 	return nullptr;
@@ -82,6 +92,55 @@ BOOL CSipPacket::msg_insert_first_hdr(MESSAGE_HDR stHdr)
 BOOL CSipPacket::msg_add_hdr(MESSAGE_HDR stHdr)
 {
 	return 0;
+}
+
+BOOL CSipPacket::msg_add_hdr(HDR_TYPES type, void * data)
+{
+	if (data == NULL)
+		return FALSE;
+
+	MESSAGE_HDR hdr;
+
+
+	hdr.type = type;
+	switch (type)
+	{
+	case 	H_VIA:
+		hdr.pData = new HEADER_VIA();
+		memcpy(hdr.pData, data, sizeof(HEADER_VIA));
+		break;
+	case 	H_MAX_FORWARDS:
+		break;	
+	case 	H_TO:
+		break;	
+	case 	H_FROM:
+		break;	
+	case 	H_CONTACT:
+		break;	
+	case 	H_CALL_ID:
+		break;	
+	case 	H_RECORD_ROUTE:
+		break;	
+	case 	H_CSEQ:
+		break;	
+	case 	H_CONTENT_TYPE:
+		break;	
+	case 	H_CONTENT_LENGTH:
+		break;
+	case 	H_PROXY_AUTHENTICATE:
+		break;
+	case 	H_PROXY_AUTHORIZATION:
+		break;
+	case 	H_OTHER:
+		break;
+
+
+	}
+
+	m_arrHdr.Add(hdr);
+
+
+	return TRUE;
 }
 
 BOOL CSipPacket::find_remove_hdr(CString strHarName)
@@ -115,6 +174,11 @@ BOOL CSipPacket::set_hdr(const CString & strTypeList, void * pData)
 }
 
 BOOL CSipPacket::set_message_body(MESS_BODY stuBody)
+{
+	return 0;
+}
+
+BOOL CSipPacket::build_message_body(MESS_BODY stuBody)
 {
 	return 0;
 }
@@ -2688,4 +2752,24 @@ BOOL HEADER_ROUTE::from_string(const CString & string)
 
 
 	return TRUE;
+}
+
+void delete_mess_body(MESS_BODY * pBody)
+{
+	if (pBody == NULL)
+		return;
+
+	if (pBody->type == _T("SDP"))
+	{
+		if (pBody->data != NULL)
+		{
+			delete ((CSDP*)pBody->data);
+			pBody->data = NULL;
+		}
+	}
+
+	pBody->len = 0;
+
+	delete pBody;
+
 }

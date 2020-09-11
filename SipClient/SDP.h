@@ -116,6 +116,8 @@ public:
 	BOOL set_media_conn(int nIndex, const CString &strConn);
 	BOOL set_media_port(int nIndex, WORD wPort);
 
+	int get_sdp_len();
+
 	//void set_address(CString str_address);
 	//void set_audio_media(BOOL media);
 	//void set_audio_address(CString str_address);
@@ -150,8 +152,7 @@ public:
 private:
 
 
-
-private:
+public:
 	//CString m_netType;  /*Network type("IN")*/
 	//CString m_addrType; /*address type("IP4", "IP6")*/
 	sdp_conn m_conn;  /*address*/

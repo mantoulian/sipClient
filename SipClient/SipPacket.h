@@ -8,7 +8,7 @@ typedef struct sip_uri
 {
 	CString user;
 	CString host;
-	unsigned short port = 0;
+	int port = -1;
 
 	//sip_uri()
 	//{
@@ -64,17 +64,27 @@ typedef struct stuRequestLine
 typedef struct status_line
 {
 	STATUS_CODE code;
-	CString strReason;
+	int len;
+	char *szReason;
+	//CString strReason;
 
 }STATUS_LINE;
 
-typedef union sipline
+typedef struct sipline
 {
 	MESSAGE_TYPE emType;
-	void *pData; //(reqLine, statusLine)
 
-	//REQUEST_LINE *stReqLine;
-	//STATUS_LINE *stStatusLine;
+	//union line_data
+	//{
+	//	REQUEST_LINE stuRequLine;
+	//	STATUS_LINE stuStatusLine;
+	//}LINE_DATA;
+
+
+	//void *pData; //(reqLine, statusLine)
+
+	REQUEST_LINE *stReqLine;
+	STATUS_LINE *stStatusLine;
 
 	//REQUEST_LINE m_Req;
 	//STATUS_LINE m_status;
@@ -155,7 +165,7 @@ typedef enum hdr_types
 typedef struct message_hdr
 {
 	HDR_TYPES  type;
-	void* hdr;
+	void* pData;
 }MESSAGE_HDR;
 
 typedef struct stuHeaderVia
@@ -295,6 +305,8 @@ typedef struct mess_body
 	unsigned len;
 }MESS_BODY;
 
+void delete_mess_body(MESS_BODY *pBody);
+
 
 typedef CTypedPtrArray<CPtrArray, HEADER_VIA*> CPtrViaArray;
 
@@ -365,44 +377,39 @@ public:
 	BYTE* get_meaasge(unsigned &len);
 
 
-	BOOL get_line(MESSAGE_TYPE &emType, SIP_LINE &unLine);
-	BOOL get_line(SIP_LINE &unLine);
+
+	//sip line
+	//BOOL build_line(MESSAGE_TYPE emType, SIP_LINE unLine);
+	BOOL build_line(SIP_LINE unLine);
+
 	SIP_LINE* get_line();
+	//BOOL set_line(MESSAGE_TYPE emType, SIP_LINE unLine);
+	//BOOL get_line(MESSAGE_TYPE &emType, SIP_LINE &unLine);
+	//BOOL get_line(SIP_LINE &unLine);
 
 
-	BOOL set_line(MESSAGE_TYPE emType, SIP_LINE unLine);
 
-
-
+	//message header
 	BOOL msg_insert_first_hdr(MESSAGE_HDR stHdr);//添加一个hdr在头部
 	BOOL msg_add_hdr(MESSAGE_HDR stHdr);//添加一个hdr在尾部
+	BOOL msg_add_hdr(HDR_TYPES type, void *data);
 	BOOL find_remove_hdr(CString strHarName);//查找hdr并移除
-	//MESSAGE_HDR* find_hdr_by_name(CString strHarName);//查找hdr
 	void* find_hdr_by_name(HDR_TYPES emHdrType);//查找hdr
-
 	BOOL clone_hdr_list(CHdrArray & arrHdr);//克隆头部列表
 	BOOL set_hdr(const CHdrArray &arrHdr);
 	BOOL set_hdr(const CString &strTypeList, void *pData);
+	//MESSAGE_HDR* find_hdr_by_name(CString strHarName);//查找hdr
 
-
-	BOOL set_message_body(MESS_BODY stuBody);
+	//message body
+	BOOL build_message_body(MESS_BODY stuBody);
 	MESS_BODY* get_message_body();
+	//BOOL set_message_body(MESS_BODY stuBody);
 
-	BOOL from_string(CString strString);
+
 	BOOL create_mess(BYTE *pBuf, unsigned uLen);
 
 	static CString NewGUIDString();
 	static CString build_via_branch();
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -472,7 +479,7 @@ private:
 	//message hdr list
 	CHdrArray m_arrHdr;
 
-	MESS_BODY *m_pBody;
+	MESS_BODY m_pBody;
 
 
 

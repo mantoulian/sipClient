@@ -221,6 +221,34 @@ void CMFCSipClientDlg::OnBnClickedButtonPlay()
 //呼叫
 void CMFCSipClientDlg::OnBnClickedButtonMakeCall()
 {
+
+	CString strContact;
+	CallOpParam stuCallOp;
+	CCall *pCall = NULL;
+
+
+	theApp.m_sip_client;
+
+	//********************方式一
+	//pCall = theApp.m_sip_client.create_call();
+	//if (pCall == NULL)
+	//	return;
+	//pCall->make_call(strContact, stuCallOp);
+
+	//*********************方式二
+	pCall = new CCall(&theApp.m_sip_client);
+	if (pCall == NULL)
+		return;
+	theApp.m_sip_client.push_call(pCall);
+	pCall->make_call(strContact, stuCallOp);
+
+
+
+
+
+
+
+	//******************************************
 	CSDP sdp;
 	CString str_contact, str_log, str_video_fmtp;
 
@@ -286,6 +314,8 @@ void CMFCSipClientDlg::OnBnClickedButtonMakeCall()
 }
 
 
+
+//
 int incoming_call(CSipPacketInfo *pack_info)
 {
 	if (NULL == pack_info)
@@ -443,4 +473,9 @@ void CMFCSipClientDlg::OnBnClickedButton_hangup()
 
 		}
 	}
+
+	//theApp.m_sip_client.
+
+
+
 }
